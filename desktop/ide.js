@@ -14,8 +14,13 @@
 // ============================================================================
 
 const ARIA_SERVER = 'http://localhost:3200';
+const BRAILLE_WS_URL = 'ws://localhost:3201';
 const HOME_DIR = '/Users/ryanbarrett';
 let currentBrowsePath = HOME_DIR; // Start at home, not just project
+
+// Braille WebSocket connection
+let brailleWS = null;
+let brailleWSConnected = false;
 
 // ============================================================================
 // State
@@ -644,6 +649,205 @@ window.fromBraille = fromBraille;
 window.toDisplayBraille = toDisplayBraille;
 window.byteToBraille = byteToBraille;
 window.brailleToByte = brailleToByte;
+
+// ============================================================================
+// Braille WebSocket Client
+// ============================================================================
+
+function connectBrailleWS() {
+  if (brailleWS && brailleWS.readyState === WebSocket.OPEN) return;
+  
+  try {
+    brailleWS = new WebSocket(BRAILLE_WS_URL);
+    
+    brailleWS.onopen = () => {
+      brailleWSConnected = true;
+      console.log('[BrailleWS] Connected');
+      setStatus('⠃⠗ Braille WebSocket connected', 'info');
+    };
+    
+    brailleWS.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        handleBrailleWSMessage(msg);
+      } catch (e) {
+        console.error('[BrailleWS] Parse error:', e);
+      }
+    };
+    
+    brailleWS.onclose = () => {
+      brailleWSConnected = false;
+      console.log('[BrailleWS] Disconnected');
+      // Reconnect after 3 seconds
+      setTimeout(connectBrailleWS, 3000);
+    };
+    
+    brailleWS.onerror = (err) => {
+      console.error('[BrailleWS] Error:', err);
+    };
+  } catch (e) {
+    console.error('[BrailleWS] Connection failed:', e);
+  }
+}
+
+function handleBrailleWSMessage(msg) {
+  switch (msg.type) {
+    case 'welcome':
+      console.log('[BrailleWS] Welcome:', msg.text);
+      appendBrailleLog('system', msg.braille, msg.text);
+      break;
+      
+    case 'chatChunk':
+      // Real-time braille chunk from LLM
+      appendBrailleChunk(msg.agent, msg.braille, msg.text);
+      break;
+      
+    case 'chatComplete':
+      finalizeBrailleMessage(msg.agent);
+      break;
+      
+    case 'swarmMessage':
+      // Multi-agent swarm message
+      if (msg.type === 'chunk') {
+        appendBrailleChunk(msg.agent, msg.braille, msg.text);
+      }
+      break;
+      
+    case 'agentChunk':
+      appendBrailleChunk(msg.agent, msg.braille, msg.text);
+      break;
+      
+    case 'encoded':
+      console.log('[BrailleWS] Encoded:', msg.text, '→', msg.braille);
+      break;
+      
+    case 'decoded':
+      console.log('[BrailleWS] Decoded:', msg.braille, '→', msg.text);
+      break;
+      
+    case 'error':
+      console.error('[BrailleWS] Error:', msg.error);
+      setStatus(`Braille error: ${msg.error}`, 'error');
+      break;
+  }
+}
+
+let currentBrailleMessage = null;
+
+function appendBrailleChunk(agent, braille, text) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  if (!currentBrailleMessage || currentBrailleMessage.dataset.agent !== agent) {
+    currentBrailleMessage = document.createElement('div');
+    currentBrailleMessage.className = 'braille-message';
+    currentBrailleMessage.dataset.agent = agent;
+    currentBrailleMessage.innerHTML = `
+      <div class="braille-agent">${agent}</div>
+      <div class="braille-content"></div>
+      <div class="braille-decoded"></div>
+    `;
+    log.appendChild(currentBrailleMessage);
+  }
+  
+  const content = currentBrailleMessage.querySelector('.braille-content');
+  const decoded = currentBrailleMessage.querySelector('.braille-decoded');
+  
+  if (braille) content.textContent += braille;
+  if (text) decoded.textContent += text;
+  
+  log.scrollTop = log.scrollHeight;
+}
+
+function finalizeBrailleMessage(agent) {
+  currentBrailleMessage = null;
+}
+
+function appendBrailleLog(type, braille, text) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  const entry = document.createElement('div');
+  entry.className = `braille-log-entry ${type}`;
+  entry.innerHTML = `
+    <div class="braille-raw">${braille}</div>
+    <div class="braille-text">⟶ ${text}</div>
+  `;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Send message via braille websocket
+function sendBrailleChat(text, agent = 'claude', brailleMode = true) {
+  if (!brailleWS || brailleWS.readyState !== WebSocket.OPEN) {
+    setStatus('Braille WebSocket not connected', 'error');
+    return;
+  }
+  
+  brailleWS.send(JSON.stringify({
+    type: 'chat',
+    text,
+    agent,
+    brailleMode,
+  }));
+  
+  // Show user message in braille
+  appendBrailleLog('user', toBraille(text), text);
+}
+
+// Start a swarm conversation
+function startBrailleSwarm(text, agents = ['claude', 'gpt4'], rounds = 2) {
+  if (!brailleWS || brailleWS.readyState !== WebSocket.OPEN) {
+    setStatus('Braille WebSocket not connected', 'error');
+    return;
+  }
+  
+  brailleWS.send(JSON.stringify({
+    type: 'swarm',
+    text,
+    agents,
+    rounds,
+  }));
+  
+  appendBrailleLog('system', toBraille(`Starting swarm: ${agents.join(' ↔ ')}`), 
+    `Starting swarm: ${agents.join(' ↔ ')}`);
+}
+
+// Input handlers for braille panel
+function sendBrailleFromInput() {
+  const input = document.getElementById('brailleInput');
+  const agent = document.getElementById('brailleAgent')?.value || 'claude';
+  if (!input?.value.trim()) return;
+  
+  sendBrailleChat(input.value, agent, true);
+  input.value = '';
+}
+
+function startSwarmFromInput() {
+  const input = document.getElementById('brailleInput');
+  if (!input?.value.trim()) return;
+  
+  startBrailleSwarm(input.value, ['claude', 'gpt4'], 2);
+  input.value = '';
+}
+
+// Expose braille functions globally
+window.connectBrailleWS = connectBrailleWS;
+window.sendBrailleChat = sendBrailleChat;
+window.startBrailleSwarm = startBrailleSwarm;
+window.sendBrailleFromInput = sendBrailleFromInput;
+window.startSwarmFromInput = startSwarmFromInput;
+
+// Auto-connect on load
+setTimeout(connectBrailleWS, 1000);
+
+// Braille input enter key handler
+document.getElementById('brailleInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    sendBrailleFromInput();
+  }
+});
 
 document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
 document.getElementById('chatInput')?.addEventListener('keydown', (e) => {

@@ -124,6 +124,7 @@
         <div class="sidebar-tabs">
           <button class="sidebar-tab active" data-panel="actions">🎯 Actions</button>
           <button class="sidebar-tab" data-panel="diff">📝 Changes</button>
+          <button class="sidebar-tab" data-panel="braille">⠃⠗ Braille</button>
         </div>
         
         <!-- Actions Panel -->
@@ -162,6 +163,34 @@
               </div>
             </div>
             <div id="diffEditor" class="diff-editor"></div>
+          </div>
+        </div>
+        
+        <!-- Braille Swarm Panel -->
+        <div class="sidebar-panel" id="braillePanel">
+          <div class="panel-header">
+            <span>⠃⠗ Braille Swarm</span>
+            <div class="panel-actions">
+              <button onclick="document.getElementById('brailleLog').innerHTML=''" title="Clear">🗑️</button>
+            </div>
+          </div>
+          <div class="braille-log" id="brailleLog">
+            <div class="braille-log-entry system">
+              <div class="braille-raw">⠃⠗⠁⠊⠇⠇⠑⠀⠎⠺⠁⠗⠍⠀⠗⠑⠁⠙⠽</div>
+              <div class="braille-text">⟶ Braille swarm ready</div>
+            </div>
+          </div>
+          <div class="braille-input-area">
+            <input type="text" id="brailleInput" placeholder="Send to braille swarm..." />
+            <div class="braille-input-actions">
+              <select id="brailleAgent">
+                <option value="claude">Claude</option>
+                <option value="gpt4">GPT-4o</option>
+                <option value="deepseek">DeepSeek</option>
+              </select>
+              <button onclick="sendBrailleFromInput()">⠎⠑⠝⠙</button>
+              <button onclick="startSwarmFromInput()" title="Start multi-agent swarm">🔄</button>
+            </div>
           </div>
         </div>
         

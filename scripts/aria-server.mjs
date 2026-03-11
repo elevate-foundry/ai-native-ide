@@ -20,6 +20,7 @@ const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
 const { AriaAgent } = require('../src/agent.js');
 const { fileHistory } = require('../src/file-history.js');
+const { BrailleWebSocketServer, toBraille, fromBraille } = require('../src/braille-websocket.js');
 
 const PROJECT_ROOT = process.cwd();
 const HOME_DIR = os.homedir();
@@ -782,8 +783,14 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
+// Start Braille WebSocket server
+const BRAILLE_WS_PORT = parseInt(process.env.BRAILLE_WS_PORT || '3201');
+const brailleWS = new BrailleWebSocketServer({ port: BRAILLE_WS_PORT });
+brailleWS.start();
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🤖 Aria server running at http://localhost:${PORT}`);
+  console.log(`⠃⠗ Braille WebSocket at ws://localhost:${BRAILLE_WS_PORT}`);
   console.log(`\n📁 File System:`);
   console.log(`   GET  /files          - List files in directory`);
   console.log(`   GET  /file           - Read file content`);
@@ -809,4 +816,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   POST /history/undo   - Undo last operation`);
   console.log(`   POST /history/redo   - Redo last undone operation`);
   console.log(`   POST /history/restore - Restore file to point`);
+  console.log(`\n⠃⠗ Braille WebSocket:`);
+  console.log(`   ws://localhost:${BRAILLE_WS_PORT} - Real-time braille braiding`);
+  console.log(`   Messages: chat, swarm, encode, decode, feedback`);
 });

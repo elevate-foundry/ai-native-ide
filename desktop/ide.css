@@ -1421,6 +1421,124 @@ body {
   background: #da3633;
 }
 
+/* Braille Swarm Panel */
+.braille-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: 'Apple Braille', 'Segoe UI Symbol', monospace;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.braille-log-entry {
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.braille-log-entry.system {
+  background: rgba(59, 130, 246, 0.2);
+  border-left: 3px solid #3b82f6;
+}
+
+.braille-log-entry.user {
+  background: rgba(34, 197, 94, 0.2);
+  border-left: 3px solid #22c55e;
+}
+
+.braille-raw {
+  color: #7dd3fc;
+  letter-spacing: 1px;
+  line-height: 1.5;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.braille-text {
+  color: #94a3b8;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.braille-message {
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(139, 92, 246, 0.2);
+  border-left: 3px solid #8b5cf6;
+}
+
+.braille-agent {
+  font-size: 11px;
+  color: #a78bfa;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.braille-content {
+  color: #7dd3fc;
+  letter-spacing: 1px;
+  line-height: 1.5;
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.braille-decoded {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  padding-top: 4px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.braille-input-area {
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.braille-input-area input {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.braille-input-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.braille-input-actions select {
+  flex: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.braille-input-actions button {
+  padding: 6px 12px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.braille-input-actions button:hover {
+  background: var(--accent-hover);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
