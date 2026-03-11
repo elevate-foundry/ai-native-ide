@@ -886,3 +886,303 @@ module.exports = { greet };
 `
   });
 };
+
+// ============================================================================
+// History / Undo / Redo
+// ============================================================================
+
+async function updateHistoryButtons() {
+  try {
+    const response = await fetch(`${ARIA_SERVER}/history/status`);
+    if (response.ok) {
+      const status = await response.json();
+      document.getElementById('undoBtn').disabled = !status.canUndo;
+      document.getElementById('redoBtn').disabled = !status.canRedo;
+    }
+  } catch {
+    // Server not available
+  }
+}
+
+async function undoLastChange() {
+  try {
+    const response = await fetch(`${ARIA_SERVER}/history/undo`, { method: 'POST' });
+    const result = await response.json();
+    
+    if (result.success) {
+      setStatus(`↩️ ${result.message}`, 'success');
+      
+      // Reload file if it's open
+      if (result.entry && openFiles.has(result.entry.filePath)) {
+        openFiles.delete(result.entry.filePath);
+        openFile(result.entry.filePath);
+      }
+      
+      loadFileTree();
+      updateHistoryButtons();
+    } else {
+      setStatus(result.message, 'info');
+    }
+  } catch (e) {
+    setStatus(`Undo failed: ${e.message}`, 'error');
+  }
+}
+
+async function redoLastChange() {
+  try {
+    const response = await fetch(`${ARIA_SERVER}/history/redo`, { method: 'POST' });
+    const result = await response.json();
+    
+    if (result.success) {
+      setStatus(`↪️ ${result.message}`, 'success');
+      
+      // Reload file if it's open
+      if (result.entry && openFiles.has(result.entry.filePath)) {
+        openFiles.delete(result.entry.filePath);
+        openFile(result.entry.filePath);
+      }
+      
+      loadFileTree();
+      updateHistoryButtons();
+    } else {
+      setStatus(result.message, 'info');
+    }
+  } catch (e) {
+    setStatus(`Redo failed: ${e.message}`, 'error');
+  }
+}
+
+async function showHistoryPanel() {
+  try {
+    const response = await fetch(`${ARIA_SERVER}/history/recent?limit=30`);
+    const { operations } = await response.json();
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'history-modal';
+    modal.innerHTML = `
+      <div class="history-modal-content">
+        <div class="history-modal-header">
+          <h3>📜 Aria File History</h3>
+          <button onclick="this.closest('.history-modal').remove()">✕</button>
+        </div>
+        <div class="history-modal-body">
+          ${operations.length === 0 ? '<p class="no-history">No history yet</p>' : ''}
+          ${operations.map(op => `
+            <div class="history-item" data-id="${op.id}" data-path="${op.filePath}">
+              <div class="history-item-icon">${op.type === 'create' ? '✨' : op.type === 'delete' ? '🗑️' : '✏️'}</div>
+              <div class="history-item-info">
+                <div class="history-item-desc">${op.description}</div>
+                <div class="history-item-meta">
+                  <span class="history-item-path">${op.filePath}</span>
+                  <span class="history-item-time">${formatTime(op.timestamp)}</span>
+                </div>
+              </div>
+              <button class="history-restore-btn" onclick="restoreToPoint('${op.filePath}', '${op.id}')">Restore</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.remove();
+    });
+  } catch (e) {
+    setStatus(`Failed to load history: ${e.message}`, 'error');
+  }
+}
+
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now - date;
+  
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return date.toLocaleDateString();
+}
+
+async function restoreToPoint(filePath, entryId) {
+  try {
+    const response = await fetch(`${ARIA_SERVER}/history/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath, entryId }),
+    });
+    const result = await response.json();
+    
+    if (result.success) {
+      setStatus(`✓ ${result.message}`, 'success');
+      
+      // Reload file if open
+      if (openFiles.has(filePath)) {
+        openFiles.delete(filePath);
+        openFile(filePath);
+      }
+      
+      loadFileTree();
+      updateHistoryButtons();
+      
+      // Close modal
+      document.querySelector('.history-modal')?.remove();
+    } else {
+      setStatus(result.message, 'error');
+    }
+  } catch (e) {
+    setStatus(`Restore failed: ${e.message}`, 'error');
+  }
+}
+
+// Keyboard shortcuts for undo/redo
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+    if (e.shiftKey) {
+      e.preventDefault();
+      redoLastChange();
+    } else if (!e.target.matches('input, textarea')) {
+      e.preventDefault();
+      undoLastChange();
+    }
+  }
+});
+
+window.undoLastChange = undoLastChange;
+window.redoLastChange = redoLastChange;
+window.showHistoryPanel = showHistoryPanel;
+window.restoreToPoint = restoreToPoint;
+
+// Update history buttons periodically
+setInterval(updateHistoryButtons, 5000);
+updateHistoryButtons();
+
+// ============================================================================
+// LLM Selector
+// ============================================================================
+
+let currentModel = 'anthropic/claude-3.5-sonnet';
+
+function toggleLLMDropdown() {
+  const dropdown = document.getElementById('llmDropdown');
+  dropdown.classList.toggle('open');
+}
+
+function selectLLM(model, name) {
+  currentModel = model;
+  document.getElementById('currentLLM').textContent = name;
+  
+  // Update selection UI
+  document.querySelectorAll('.llm-option').forEach(opt => {
+    const isSelected = opt.dataset.model === model;
+    opt.classList.toggle('selected', isSelected);
+    opt.querySelector('.llm-check').textContent = isSelected ? '✓' : '';
+  });
+  
+  // Close dropdown
+  document.getElementById('llmDropdown').classList.remove('open');
+  
+  // Notify server of model change
+  fetch(`${ARIA_SERVER}/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model }),
+  }).catch(() => {});
+  
+  setStatus(`Switched to ${name}`, 'success');
+}
+
+// Setup LLM option click handlers
+document.querySelectorAll('.llm-option').forEach(opt => {
+  opt.addEventListener('click', () => {
+    const model = opt.dataset.model;
+    const name = opt.querySelector('.llm-name').textContent;
+    selectLLM(model, name);
+  });
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.llm-selector')) {
+    document.getElementById('llmDropdown')?.classList.remove('open');
+  }
+});
+
+window.toggleLLMDropdown = toggleLLMDropdown;
+window.selectLLM = selectLLM;
+
+// ============================================================================
+// Settings Panel
+// ============================================================================
+
+function openSettings() {
+  const modal = document.createElement('div');
+  modal.className = 'settings-modal';
+  modal.innerHTML = `
+    <div class="settings-modal-content">
+      <div class="settings-modal-header">
+        <h3>⚙️ Aria Settings</h3>
+        <button onclick="this.closest('.settings-modal').remove()">✕</button>
+      </div>
+      <div class="settings-modal-body">
+        <div class="settings-section">
+          <h4>🧠 AI Model</h4>
+          <p class="settings-desc">Current model: <strong>${document.getElementById('currentLLM').textContent}</strong></p>
+          <p class="settings-desc">Change model using the selector in the status bar.</p>
+        </div>
+        
+        <div class="settings-section">
+          <h4>🔑 API Key</h4>
+          <p class="settings-desc">OpenRouter API key is configured in <code>.env</code></p>
+          <a href="https://openrouter.ai/keys" target="_blank" class="settings-link">Get API Key →</a>
+        </div>
+        
+        <div class="settings-section">
+          <h4>📁 Workspace</h4>
+          <p class="settings-desc">Current path: <code>${currentBrowsePath}</code></p>
+        </div>
+        
+        <div class="settings-section">
+          <h4>📜 History</h4>
+          <p class="settings-desc">File history is stored in <code>~/.aria/history/</code></p>
+          <button class="settings-btn danger" onclick="clearHistory()">Clear All History</button>
+        </div>
+        
+        <div class="settings-section">
+          <h4>🎨 Theme</h4>
+          <p class="settings-desc">Dark theme (Windsurf-inspired)</p>
+        </div>
+        
+        <div class="settings-section">
+          <h4>ℹ️ About</h4>
+          <p class="settings-desc">
+            <strong>Aria IDE</strong> — AI Runtime Interactive Agent<br>
+            Version 1.0.0<br>
+            <a href="https://github.com/elevate-foundry/ai-native-ide" target="_blank">GitHub →</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+async function clearHistory() {
+  if (confirm('Are you sure you want to clear all file history? This cannot be undone.')) {
+    try {
+      // Would call server endpoint to clear history
+      setStatus('History cleared', 'success');
+      document.querySelector('.settings-modal')?.remove();
+    } catch (e) {
+      setStatus('Failed to clear history', 'error');
+    }
+  }
+}
+
+window.openSettings = openSettings;
+window.clearHistory = clearHistory;

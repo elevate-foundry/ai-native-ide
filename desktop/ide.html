@@ -23,6 +23,9 @@
         </div>
       </div>
       <div class="topbar-right">
+        <button id="undoBtn" class="icon-btn" title="Undo (Cmd+Z)" onclick="undoLastChange()" disabled>↩️</button>
+        <button id="redoBtn" class="icon-btn" title="Redo (Cmd+Shift+Z)" onclick="redoLastChange()" disabled>↪️</button>
+        <button id="historyBtn" class="icon-btn" title="History" onclick="showHistoryPanel()">📜</button>
         <span id="connectionStatus" class="status-dot offline" title="Aria Backend"></span>
         <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
       </div>
@@ -162,17 +165,83 @@
       </aside>
     </main>
 
-    <!-- Status Bar -->
+    <!-- Status Bar (Windsurf-style) -->
     <footer class="statusbar">
       <div class="statusbar-left">
         <span id="cursorPosition">Ln 1, Col 1</span>
+        <span class="statusbar-divider">|</span>
         <span id="fileLanguage">Plain Text</span>
+        <span class="statusbar-divider">|</span>
+        <span id="fileEncoding">UTF-8</span>
+        <span class="statusbar-divider">|</span>
+        <span id="indentInfo">Spaces: 2</span>
       </div>
       <div class="statusbar-center">
         <span id="statusMessage"></span>
       </div>
       <div class="statusbar-right">
-        <span id="ariaStatus">Aria: Ready</span>
+        <div class="llm-selector" id="llmSelector">
+          <button class="llm-current" onclick="toggleLLMDropdown()">
+            <span class="llm-icon">🧠</span>
+            <span id="currentLLM">Claude 3.5 Sonnet</span>
+            <span class="llm-arrow">▾</span>
+          </button>
+          <div class="llm-dropdown" id="llmDropdown">
+            <div class="llm-dropdown-header">Select Model</div>
+            <div class="llm-option selected" data-model="anthropic/claude-3.5-sonnet">
+              <span class="llm-check">✓</span>
+              <span class="llm-name">Claude 3.5 Sonnet</span>
+              <span class="llm-badge fast">Fast</span>
+            </div>
+            <div class="llm-option" data-model="anthropic/claude-3-opus">
+              <span class="llm-check"></span>
+              <span class="llm-name">Claude 3 Opus</span>
+              <span class="llm-badge smart">Smart</span>
+            </div>
+            <div class="llm-option" data-model="openai/gpt-4o">
+              <span class="llm-check"></span>
+              <span class="llm-name">GPT-4o</span>
+              <span class="llm-badge fast">Fast</span>
+            </div>
+            <div class="llm-option" data-model="openai/gpt-4-turbo">
+              <span class="llm-check"></span>
+              <span class="llm-name">GPT-4 Turbo</span>
+              <span class="llm-badge"></span>
+            </div>
+            <div class="llm-option" data-model="google/gemini-pro-1.5">
+              <span class="llm-check"></span>
+              <span class="llm-name">Gemini 1.5 Pro</span>
+              <span class="llm-badge context">1M ctx</span>
+            </div>
+            <div class="llm-option" data-model="meta-llama/llama-3.1-405b-instruct">
+              <span class="llm-check"></span>
+              <span class="llm-name">Llama 3.1 405B</span>
+              <span class="llm-badge open">Open</span>
+            </div>
+            <div class="llm-option" data-model="mistralai/mistral-large">
+              <span class="llm-check"></span>
+              <span class="llm-name">Mistral Large</span>
+              <span class="llm-badge"></span>
+            </div>
+            <div class="llm-option" data-model="deepseek/deepseek-chat">
+              <span class="llm-check"></span>
+              <span class="llm-name">DeepSeek V3</span>
+              <span class="llm-badge cheap">Cheap</span>
+            </div>
+            <div class="llm-dropdown-footer">
+              <a href="https://openrouter.ai/models" target="_blank">Browse all models →</a>
+            </div>
+          </div>
+        </div>
+        <span class="statusbar-divider">|</span>
+        <span class="connection-status" id="connectionIndicator">
+          <span class="status-dot online"></span>
+          <span id="ariaStatus">Aria: Connected</span>
+        </span>
+        <span class="statusbar-divider">|</span>
+        <button class="statusbar-btn" onclick="openSettings()" title="Settings">
+          <span>⚙️</span> Windsurf Settings
+        </button>
       </div>
     </footer>
 

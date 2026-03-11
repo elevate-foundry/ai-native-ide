@@ -19,6 +19,7 @@ config();
 const execAsync = promisify(exec);
 const require = createRequire(import.meta.url);
 const { AriaAgent } = require('../src/agent.js');
+const { fileHistory } = require('../src/file-history.js');
 
 const PROJECT_ROOT = process.cwd();
 const HOME_DIR = os.homedir();
@@ -602,17 +603,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Write file
+  // Write file (with history tracking)
   if (req.method === 'POST' && req.url === '/file') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
       try {
-        const { path: filePath, content } = JSON.parse(body);
+        const { path: filePath, content, description } = JSON.parse(body);
         
         let fullPath = filePath;
         if (!path.isAbsolute(filePath)) {
           fullPath = path.join(PROJECT_ROOT, filePath);
+        }
+        
+        // Get old content for history
+        let oldContent = null;
+        const isNew = !fs.existsSync(fullPath);
+        if (!isNew) {
+          try {
+            oldContent = fs.readFileSync(fullPath, 'utf-8');
+          } catch {}
         }
         
         // Ensure directory exists
@@ -621,9 +631,19 @@ const server = http.createServer(async (req, res) => {
           fs.mkdirSync(dir, { recursive: true });
         }
         
+        // Write file
         fs.writeFileSync(fullPath, content, 'utf-8');
+        
+        // Record in history
+        let historyEntry;
+        if (isNew) {
+          historyEntry = fileHistory.recordCreate(fullPath, content, description);
+        } else {
+          historyEntry = fileHistory.recordEdit(fullPath, oldContent, content, description);
+        }
+        
         res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: true, path: fullPath }));
+        res.end(JSON.stringify({ success: true, path: fullPath, history: historyEntry }));
       } catch (e) {
         res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
@@ -662,6 +682,100 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ============================================================================
+  // History API
+  // ============================================================================
+
+  // Get file timeline/history
+  if (req.method === 'GET' && req.url.startsWith('/history/file')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const filePath = url.searchParams.get('path');
+    const limit = parseInt(url.searchParams.get('limit')) || 20;
+    
+    try {
+      const timeline = fileHistory.getTimeline(filePath, limit);
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ filePath, timeline }));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Get recent operations across all files
+  if (req.method === 'GET' && req.url.startsWith('/history/recent')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const limit = parseInt(url.searchParams.get('limit')) || 20;
+    
+    try {
+      const operations = fileHistory.getRecentOperations(limit);
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ operations }));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Get undo/redo status
+  if (req.method === 'GET' && req.url === '/history/status') {
+    try {
+      const status = fileHistory.getStatus();
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(status));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Undo last operation
+  if (req.method === 'POST' && req.url === '/history/undo') {
+    try {
+      const result = fileHistory.undo();
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Redo last undone operation
+  if (req.method === 'POST' && req.url === '/history/redo') {
+    try {
+      const result = fileHistory.redo();
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Restore file to specific point
+  if (req.method === 'POST' && req.url === '/history/restore') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { filePath, entryId } = JSON.parse(body);
+        const result = fileHistory.restoreToPoint(filePath, entryId);
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (e) {
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // 404 for everything else
   res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
@@ -687,4 +801,11 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n⚡ Commands:`);
   console.log(`   POST /exec           - Execute shell command`);
   console.log(`   GET  /health         - Health check`);
+  console.log(`\n📜 History:`);
+  console.log(`   GET  /history/file   - Get file timeline`);
+  console.log(`   GET  /history/recent - Get recent operations`);
+  console.log(`   GET  /history/status - Get undo/redo status`);
+  console.log(`   POST /history/undo   - Undo last operation`);
+  console.log(`   POST /history/redo   - Redo last undone operation`);
+  console.log(`   POST /history/restore - Restore file to point`);
 });
