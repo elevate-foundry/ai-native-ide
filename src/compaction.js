@@ -9,9 +9,11 @@
  * 2. Truncation - Remove oldest messages beyond a threshold
  * 3. Tool result compression - Shorten verbose tool outputs
  * 4. Sliding window - Keep recent N messages in full detail
+ * 5. Braille braiding - UEB encoding for semantic compression & deduplication
  */
 
 const { createLLMClient } = require('./llm.cjs');
+const { BrailleHarness, braidConversation, findDuplicates } = require('./braille-harness');
 
 // Approximate token counts (rough estimates)
 const CHARS_PER_TOKEN = 4;
@@ -290,6 +292,8 @@ class ContextManager {
     this.summaryTrigger = options.summaryTrigger || SUMMARY_TRIGGER_TOKENS;
     this.llmClient = options.llmClient || null;
     this.autoCompact = options.autoCompact !== false;
+    this.useBrailleHarness = options.useBrailleHarness !== false;
+    this.brailleHarness = new BrailleHarness({ useContractions: true });
   }
 
   async compact(history) {
@@ -299,6 +303,43 @@ class ContextManager {
       summaryTrigger: this.summaryTrigger,
       llmClient: this.llmClient,
     });
+  }
+
+  /**
+   * Braille-enhanced compaction using UEB harness
+   * 1. Braid all messages into braille form
+   * 2. Find duplicates via fingerprinting
+   * 3. Remove redundant content
+   * 4. Unbraid back to text
+   */
+  async compactWithBraille(history) {
+    if (!this.useBrailleHarness) {
+      return this.compact(history);
+    }
+
+    // Step 1: Braid conversation into braille
+    const braided = braidConversation(history, this.brailleHarness);
+    
+    // Step 2: Find duplicate messages by fingerprint
+    const duplicates = findDuplicates(braided);
+    
+    // Step 3: Mark duplicates for removal/reference
+    const deduped = braided.filter((msg, idx) => {
+      // Keep if not a duplicate, or if it's the original
+      return !duplicates.some(d => d.duplicate === idx);
+    });
+    
+    // Step 4: Strip braille metadata and return
+    const result = deduped.map(({ _braille, _fingerprint, ...msg }) => msg);
+    
+    // Step 5: Apply standard compaction on top
+    const compacted = await this.compact(result);
+    
+    return {
+      ...compacted,
+      duplicatesRemoved: duplicates.length,
+      brailleStats: this.brailleHarness.getStats(),
+    };
   }
 
   incrementalCompact(history) {
@@ -314,6 +355,10 @@ class ContextManager {
   needsCompaction(history) {
     return estimateHistoryTokens(history) > this.summaryTrigger;
   }
+
+  getBrailleStats() {
+    return this.brailleHarness.getStats();
+  }
 }
 
 module.exports = {
@@ -324,6 +369,7 @@ module.exports = {
   compactHistory,
   incrementalCompact,
   ContextManager,
+  BrailleHarness,
   CHARS_PER_TOKEN,
   DEFAULT_MAX_TOKENS,
   SLIDING_WINDOW_SIZE,
