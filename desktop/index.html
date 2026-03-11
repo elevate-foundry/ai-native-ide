@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playwright-Native AI IDE</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <aside class="panel left">
+        <h2>Goals</h2>
+        <textarea id="goal" rows="7">Investigate login failure and propose repair loop.</textarea>
+        <button id="runLoop">Run Runtime Loop</button>
+      </aside>
+
+      <section class="panel center">
+        <h1>Playwright-Native AI IDE (Tauri)</h1>
+        <p class="muted">Desktop shell prototype with runtime + interface observability panels.</p>
+        <pre id="loopOutput">Press “Run Runtime Loop” to simulate a goal-driven iteration.</pre>
+      </section>
+
+      <aside class="panel right">
+        <h2>Interface Sensor</h2>
+        <div class="sensor-grid">
+          <div>
+            <strong>DOM</strong>
+            <pre id="domState">(waiting)</pre>
+          </div>
+          <div>
+            <strong>Console</strong>
+            <pre id="consoleState">(waiting)</pre>
+          </div>
+          <div>
+            <strong>Network</strong>
+            <pre id="networkState">(waiting)</pre>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
