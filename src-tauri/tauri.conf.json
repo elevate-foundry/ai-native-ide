@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Playwright Native AI IDE",
+  "version": "0.1.0",
+  "identifier": "com.example.playwright-native-ai-ide",
+  "build": {
+    "beforeDevCommand": "npm run tauri:web",
+    "beforeBuildCommand": "npm run tauri:web",
+    "devUrl": "http://127.0.0.1:4173",
+    "frontendDist": "../desktop"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Playwright-Native AI IDE",
+        "width": 1440,
+        "height": 900,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}
