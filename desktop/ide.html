@@ -183,13 +183,17 @@
           <div class="braille-input-area">
             <input type="text" id="brailleInput" placeholder="Send to braille swarm..." />
             <div class="braille-input-actions">
-              <select id="brailleAgent">
-                <option value="claude">Claude</option>
-                <option value="gpt4">GPT-4o</option>
-                <option value="deepseek">DeepSeek</option>
+              <select id="brailleCategory">
+                <option value="flagship">Flagship</option>
+                <option value="fast">Fast</option>
+                <option value="reasoning">Reasoning</option>
+                <option value="coding">Coding</option>
+                <option value="open">Open Source</option>
               </select>
-              <button onclick="sendBrailleFromInput()">⠎⠑⠝⠙</button>
-              <button onclick="startSwarmFromInput()" title="Start multi-agent swarm">🔄</button>
+              <button onclick="sendBrailleFromInput()" title="Single agent">⠎⠑⠝⠙</button>
+              <button onclick="broadcastFromInput()" title="Broadcast to category">📡</button>
+              <button onclick="consensusFromInput()" title="Consensus vote">🗳️</button>
+              <button onclick="listModels()" title="List models">�</button>
             </div>
           </div>
         </div>

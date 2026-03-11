@@ -707,14 +707,43 @@ function handleBrailleWSMessage(msg) {
       break;
       
     case 'swarmMessage':
+    case 'massiveSwarmMessage':
       // Multi-agent swarm message
-      if (msg.type === 'chunk') {
-        appendBrailleChunk(msg.agent, msg.braille, msg.text);
-      }
+      appendBrailleChunk(msg.agent, msg.braille, msg.decoded || msg.text);
       break;
       
     case 'agentChunk':
       appendBrailleChunk(msg.agent, msg.braille, msg.text);
+      break;
+      
+    // Massive swarm events
+    case 'massiveSwarmResponse':
+    case 'broadcastResponse':
+      appendSwarmResponse(msg);
+      break;
+      
+    case 'consensusVote':
+      appendConsensusVote(msg);
+      break;
+      
+    case 'consensusResult':
+      appendConsensusResult(msg);
+      break;
+      
+    case 'modelList':
+      displayModelList(msg);
+      break;
+      
+    case 'broadcastStart':
+    case 'massiveSwarmStart':
+      appendBrailleLog('system', msg.inputBraille, 
+        `🚀 Starting ${msg.category || 'swarm'} with ${msg.agentCount || msg.agents?.length} agents`);
+      break;
+      
+    case 'broadcastComplete':
+    case 'massiveSwarmComplete':
+      appendBrailleLog('system', toBraille('Complete'), 
+        `✅ Swarm complete: ${msg.total || msg.log?.length} responses`);
       break;
       
     case 'encoded':
@@ -728,8 +757,77 @@ function handleBrailleWSMessage(msg) {
     case 'error':
       console.error('[BrailleWS] Error:', msg.error);
       setStatus(`Braille error: ${msg.error}`, 'error');
+      appendBrailleLog('error', '', `❌ ${msg.error}`);
       break;
   }
+}
+
+// Display a swarm response in the UI
+function appendSwarmResponse(msg) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  const agentName = msg.name || msg.modelId?.split('/').pop() || msg.agent;
+  const hasError = !!msg.error;
+  
+  const entry = document.createElement('div');
+  entry.className = `braille-swarm-response ${hasError ? 'error' : 'success'}`;
+  entry.innerHTML = `
+    <div class="swarm-agent-name">${hasError ? '❌' : '✅'} ${agentName}</div>
+    ${msg.braille ? `<div class="braille-raw">${msg.braille.slice(0, 100)}${msg.braille.length > 100 ? '...' : ''}</div>` : ''}
+    <div class="braille-decoded">${hasError ? msg.error : (msg.text || msg.decoded || '(braille only)')}</div>
+  `;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Display consensus vote
+function appendConsensusVote(msg) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  const agentName = msg.agent?.split('/').pop() || 'unknown';
+  
+  const entry = document.createElement('div');
+  entry.className = 'braille-consensus-vote';
+  entry.innerHTML = `<span class="vote-agent">🗳️ ${agentName}:</span> <span class="vote-answer">${msg.answer}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Display consensus result
+function appendConsensusResult(msg) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  const entry = document.createElement('div');
+  entry.className = 'braille-consensus-result';
+  entry.innerHTML = `
+    <div class="consensus-header">📊 CONSENSUS RESULT</div>
+    <div class="consensus-winner">Winner: "${msg.consensus}" (${msg.votes} votes)</div>
+    <div class="consensus-total">Total responses: ${msg.totalResponses}</div>
+  `;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+// Display model list
+function displayModelList(msg) {
+  const log = document.getElementById('brailleLog');
+  if (!log) return;
+  
+  const entry = document.createElement('div');
+  entry.className = 'braille-model-list';
+  entry.innerHTML = `
+    <div class="model-list-header">📋 Available Models (${msg.stats?.total || 0} total)</div>
+    <div class="model-categories">
+      ${Object.entries(msg.stats?.categories || {}).map(([cat, count]) => 
+        `<span class="model-category">${cat}: ${count}</span>`
+      ).join(' | ')}
+    </div>
+  `;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
 }
 
 let currentBrailleMessage = null;
@@ -816,10 +914,11 @@ function startBrailleSwarm(text, agents = ['claude', 'gpt4'], rounds = 2) {
 // Input handlers for braille panel
 function sendBrailleFromInput() {
   const input = document.getElementById('brailleInput');
-  const agent = document.getElementById('brailleAgent')?.value || 'claude';
+  const category = document.getElementById('brailleCategory')?.value || 'flagship';
   if (!input?.value.trim()) return;
   
-  sendBrailleChat(input.value, agent, true);
+  // Send to first model in category via massiveSwarm
+  sendBrailleChat(input.value, category, true);
   input.value = '';
 }
 
@@ -831,12 +930,74 @@ function startSwarmFromInput() {
   input.value = '';
 }
 
+// Broadcast to all models in a category
+function broadcastFromInput() {
+  const input = document.getElementById('brailleInput');
+  const category = document.getElementById('brailleCategory')?.value || 'fast';
+  if (!input?.value.trim()) return;
+  
+  if (!brailleWS || brailleWS.readyState !== WebSocket.OPEN) {
+    setStatus('Braille WebSocket not connected', 'error');
+    return;
+  }
+  
+  brailleWS.send(JSON.stringify({
+    type: 'broadcast',
+    text: input.value,
+    category,
+    maxAgents: 15,
+  }));
+  
+  appendBrailleLog('user', toBraille(input.value), `📡 Broadcasting to ${category}: ${input.value}`);
+  input.value = '';
+}
+
+// Consensus vote across models
+function consensusFromInput() {
+  const input = document.getElementById('brailleInput');
+  const category = document.getElementById('brailleCategory')?.value || 'flagship';
+  if (!input?.value.trim()) return;
+  
+  if (!brailleWS || brailleWS.readyState !== WebSocket.OPEN) {
+    setStatus('Braille WebSocket not connected', 'error');
+    return;
+  }
+  
+  brailleWS.send(JSON.stringify({
+    type: 'consensus',
+    question: input.value,
+    category,
+    maxAgents: 10,
+  }));
+  
+  appendBrailleLog('user', toBraille(input.value), `🗳️ Consensus vote: ${input.value}`);
+  input.value = '';
+}
+
+// List available models
+function listModels() {
+  if (!brailleWS || brailleWS.readyState !== WebSocket.OPEN) {
+    setStatus('Braille WebSocket not connected', 'error');
+    return;
+  }
+  
+  const category = document.getElementById('brailleCategory')?.value;
+  
+  brailleWS.send(JSON.stringify({
+    type: 'listModels',
+    category,
+  }));
+}
+
 // Expose braille functions globally
 window.connectBrailleWS = connectBrailleWS;
 window.sendBrailleChat = sendBrailleChat;
 window.startBrailleSwarm = startBrailleSwarm;
 window.sendBrailleFromInput = sendBrailleFromInput;
 window.startSwarmFromInput = startSwarmFromInput;
+window.broadcastFromInput = broadcastFromInput;
+window.consensusFromInput = consensusFromInput;
+window.listModels = listModels;
 
 // Auto-connect on load
 setTimeout(connectBrailleWS, 1000);

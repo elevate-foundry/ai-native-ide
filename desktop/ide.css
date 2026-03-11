@@ -1539,6 +1539,95 @@ body {
   background: var(--accent-hover);
 }
 
+/* Swarm Response Styles */
+.braille-swarm-response {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.braille-swarm-response.success {
+  background: rgba(34, 197, 94, 0.15);
+  border-left: 3px solid #22c55e;
+}
+
+.braille-swarm-response.error {
+  background: rgba(239, 68, 68, 0.15);
+  border-left: 3px solid #ef4444;
+}
+
+.swarm-agent-name {
+  font-weight: 600;
+  color: #a78bfa;
+  margin-bottom: 4px;
+}
+
+/* Consensus Styles */
+.braille-consensus-vote {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.vote-agent {
+  color: #60a5fa;
+}
+
+.vote-answer {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.braille-consensus-result {
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  border: 1px solid #8b5cf6;
+}
+
+.consensus-header {
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 8px;
+}
+
+.consensus-winner {
+  font-size: 16px;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.consensus-total {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Model List Styles */
+.braille-model-list {
+  margin: 8px 0;
+  padding: 8px;
+  background: rgba(59, 130, 246, 0.15);
+  border-radius: 6px;
+}
+
+.model-list-header {
+  font-weight: 600;
+  color: #60a5fa;
+  margin-bottom: 4px;
+}
+
+.model-categories {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.model-category {
+  margin-right: 8px;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
