@@ -29,7 +29,7 @@ Open: <http://127.0.0.1:4173>
 ## 2) One-line installer mode (Ollama style)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/HEAD/scripts/install.sh | bash
 ```
 
 Then:
@@ -49,6 +49,29 @@ The default interactive shell is now zsh.
 that is expected on macOS and does not indicate an install failure.
 Use the installer with `| bash` (not `| sh`) for best compatibility.
 
+
+## 2.2) If curl returns 404
+
+If you see:
+
+```
+curl: (22) The requested URL returned error: 404
+```
+
+common causes are:
+
+- the repository is private,
+- the default branch does not yet include `scripts/install.sh`,
+- or the org/repo path is wrong.
+
+Fallback install via clone:
+
+```bash
+git clone https://github.com/elevate-foundry/ai-native-ide.git ai-native-ide
+cd ai-native-ide
+bash scripts/install.sh
+```
+
 ## 3) OS-specific commands
 
 ## macOS
@@ -65,7 +88,7 @@ npm run tauri:dev
 ### Installer mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/HEAD/scripts/install.sh | bash
 ai-native-ide dev
 ```
 
@@ -85,7 +108,7 @@ npm run tauri:dev
 ### Installer mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/HEAD/scripts/install.sh | bash
 ai-native-ide dev
 ```
 
@@ -96,7 +119,7 @@ Recommended: use WSL (Ubuntu) and run the Linux commands above.
 If using Git Bash directly, installer mode also works:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/HEAD/scripts/install.sh | bash
 ai-native-ide dev
 ```
 

@@ -11,4 +11,6 @@ test('runbook document exists and includes cross-platform startup sections', () 
   assert.match(content, /## Linux/);
   assert.match(content, /## Windows \/ Surface \/ 2-in-1/);
   assert.match(content, /ai-native-ide dev/);
+  assert.match(content, /If curl returns 404/);
+  assert.match(content, /raw\.githubusercontent\.com\/elevate-foundry\/ai-native-ide\/HEAD\/scripts\/install\.sh/);
 });
