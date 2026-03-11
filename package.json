@@ -13,6 +13,19 @@
     "monitor:sockets": "node scripts/monitor-sockets.mjs",
     "monitor:sockets:once": "node scripts/monitor-sockets.mjs --once",
     "npm:maxsockets": "npm config set maxsockets 10",
-    "mcp": "node scripts/mcp-server.mjs"
+    "mcp": "node scripts/mcp-server.mjs",
+    "models": "node scripts/model-servers.mjs",
+    "logo": "node scripts/generate-logo.mjs",
+    "aria": "node scripts/aria-cli.mjs",
+    "aria:server": "node scripts/aria-server.mjs",
+    "ide": "IDE_MODE=true node scripts/serve-desktop.mjs",
+    "start": "./scripts/start-aria.sh"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "playwright": "^1.58.2"
   }
 }

@@ -2,6 +2,27 @@
 
 This repository contains **Aria**, a working prototype of a runtime-native AI coding assistant inspired by the Playwright-Native AI IDE manifesto.
 
+## Quick Start
+
+```bash
+git clone https://github.com/elevate-foundry/ai-native-ide.git
+cd ai-native-ide
+./bootstrap.sh
+```
+
+That's it! The bootstrap script will:
+1. Check for Node.js
+2. Install dependencies
+3. Set up your OpenRouter API key
+4. Start the Aria server and IDE
+5. Open the IDE in your browser
+
+**IDE:** http://localhost:4173/ide  
+**API:** http://localhost:3200  
+**CLI:** `npm run aria`
+
+To stop: `./stop.sh`
+
 ## What is included
 
 - A formal manifesto document.

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aria IDE</title>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="stylesheet" href="./ide.css" />
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  </head>
+  <body>
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <img src="./icon.svg" alt="Aria" class="logo" />
+        <span class="title">Aria IDE</span>
+        <span class="project-name" id="projectName">ai-native-ide</span>
+      </div>
+      <div class="topbar-center">
+        <div class="tabs" id="editorTabs">
+          <!-- Tabs will be added dynamically -->
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span id="connectionStatus" class="status-dot offline" title="Aria Backend"></span>
+        <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+      </div>
+    </header>
+
+    <!-- Main IDE Layout -->
+    <main class="ide-layout">
+      <!-- Left Sidebar: File Tree + Chat -->
+      <aside class="sidebar left" id="leftSidebar">
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-panel="files">📁 Files</button>
+          <button class="sidebar-tab" data-panel="chat">💬 Chat</button>
+        </div>
+        
+        <!-- File Tree Panel -->
+        <div class="sidebar-panel active" id="filesPanel">
+          <div class="panel-header">
+            <span>Explorer</span>
+            <div class="panel-actions">
+              <button onclick="goHome()" title="Home">🏠</button>
+              <button id="refreshFiles" title="Refresh">🔄</button>
+              <button id="newFile" title="New File">+</button>
+            </div>
+          </div>
+          <div class="path-bar">
+            <span id="currentPath" title="Current path">~</span>
+          </div>
+          <div class="quick-nav">
+            <button onclick="goToProject('/Users/ryanbarrett/ai-native-ide')" title="Aria IDE">📦 ai-native-ide</button>
+            <button onclick="goToProject('/Users/ryanbarrett/CascadeProjects')" title="Projects">📂 Projects</button>
+          </div>
+          <div class="file-tree" id="fileTree">
+            <div class="loading">Loading files...</div>
+          </div>
+        </div>
+        
+        <!-- Chat Panel -->
+        <div class="sidebar-panel" id="chatPanel">
+          <div class="panel-header">
+            <span>Chat with Aria</span>
+            <button id="clearChatBtn" title="Clear">🗑️</button>
+          </div>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-input-area">
+            <textarea id="chatInput" placeholder="Ask Aria to help with code..." rows="3"></textarea>
+            <button id="sendChatBtn">Send</button>
+          </div>
+        </div>
+        
+        <div class="resize-handle vertical" data-resize="left"></div>
+      </aside>
+
+      <!-- Center: Editor + Terminal -->
+      <section class="editor-area">
+        <!-- Editor Container -->
+        <div class="editor-container" id="editorContainer">
+          <div class="editor-welcome" id="editorWelcome">
+            <img src="./icon.svg" alt="Aria" style="width: 80px; opacity: 0.5;" />
+            <h2>Welcome to Aria IDE</h2>
+            <p>Open a file from the explorer or ask Aria to help you code.</p>
+            <div class="quick-actions">
+              <button onclick="openFile('package.json')">📦 package.json</button>
+              <button onclick="openFile('src/agent.js')">🤖 agent.js</button>
+              <button onclick="openFile('README.md')">📄 README.md</button>
+            </div>
+          </div>
+          <div id="monacoEditor" style="display: none;"></div>
+        </div>
+        
+        <!-- Terminal -->
+        <div class="terminal-container" id="terminalContainer">
+          <div class="resize-handle horizontal" data-resize="terminal"></div>
+          <div class="terminal-header">
+            <span>Terminal</span>
+            <div class="terminal-actions">
+              <button id="clearTerminal" title="Clear">🗑️</button>
+              <button id="toggleTerminal" title="Toggle">▼</button>
+            </div>
+          </div>
+          <div class="terminal-content" id="terminalContent">
+            <div class="terminal-output" id="terminalOutput"></div>
+            <div class="terminal-input-line">
+              <span class="prompt">$</span>
+              <input type="text" id="terminalInput" placeholder="Enter command..." />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Sidebar: Aria Actions + Diff View -->
+      <aside class="sidebar right" id="rightSidebar">
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-panel="actions">🎯 Actions</button>
+          <button class="sidebar-tab" data-panel="diff">📝 Changes</button>
+        </div>
+        
+        <!-- Actions Panel -->
+        <div class="sidebar-panel active" id="actionsPanel">
+          <div class="panel-header">
+            <span>Aria Actions</span>
+          </div>
+          <div class="actions-list" id="actionsList">
+            <div class="action-item">
+              <span class="action-icon">✨</span>
+              <span>Ready to assist</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Diff/Changes Panel -->
+        <div class="sidebar-panel" id="diffPanel">
+          <div class="panel-header">
+            <span>Pending Changes <span id="pendingCount" class="badge" style="display:none;">0</span></span>
+            <div class="panel-actions">
+              <button id="applyAllChanges" title="Apply All">✓ All</button>
+              <button onclick="rejectAllChanges()" title="Reject All">✗ All</button>
+            </div>
+          </div>
+          <div class="diff-list" id="diffList">
+            <div class="no-changes">No pending changes</div>
+          </div>
+          
+          <!-- Diff Editor (Windsurf-style) -->
+          <div id="diffEditorContainer" class="diff-editor-container" style="display: none;">
+            <div class="diff-editor-header">
+              <span id="diffFileName">file.js</span>
+              <div id="diffActions" class="diff-editor-actions">
+                <button onclick="rejectCurrentChange()" class="reject-btn">✗ Reject</button>
+                <button onclick="applyCurrentChange()" class="apply-btn">✓ Accept</button>
+              </div>
+            </div>
+            <div id="diffEditor" class="diff-editor"></div>
+          </div>
+        </div>
+        
+        <div class="resize-handle vertical" data-resize="right"></div>
+      </aside>
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="statusbar">
+      <div class="statusbar-left">
+        <span id="cursorPosition">Ln 1, Col 1</span>
+        <span id="fileLanguage">Plain Text</span>
+      </div>
+      <div class="statusbar-center">
+        <span id="statusMessage"></span>
+      </div>
+      <div class="statusbar-right">
+        <span id="ariaStatus">Aria: Ready</span>
+      </div>
+    </footer>
+
+    <script type="module" src="./ide.js"></script>
+  </body>
+</html>
