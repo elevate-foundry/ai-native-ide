@@ -224,10 +224,10 @@ When writing code, encode it in braille. The receiving system will decode it.`;
 }
 
 // ============================================================================
-// Braille Swarm Orchestrator
+// Legacy Braille Swarm Orchestrator (for 3-agent conversations)
 // ============================================================================
 
-class BrailleSwarm extends EventEmitter {
+class LegacyBrailleSwarm extends EventEmitter {
   constructor(options = {}) {
     super();
     this.agents = new Map();
@@ -302,7 +302,7 @@ class BrailleWebSocketServer extends EventEmitter {
     this.port = options.port || 3201;
     this.wss = null;
     this.clients = new Map();
-    this.legacySwarm = new BrailleSwarm();
+    this.legacySwarm = new LegacyBrailleSwarm();
     this.massiveSwarm = new BrailleSwarm(); // From braille-swarm.js
     this.initialized = false;
     
