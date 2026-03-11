@@ -518,6 +518,34 @@ async function sendChatMessage() {
   }
 }
 
+// Braille encoding map (from BBID)
+const BRAILLE_MAP = {
+  'a': '⠁', 'b': '⠃', 'c': '⠉', 'd': '⠙', 'e': '⠑',
+  'f': '⠋', 'g': '⠛', 'h': '⠓', 'i': '⠊', 'j': '⠚',
+  'k': '⠅', 'l': '⠇', 'm': '⠍', 'n': '⠝', 'o': '⠕',
+  'p': '⠏', 'q': '⠟', 'r': '⠗', 's': '⠎', 't': '⠞',
+  'u': '⠥', 'v': '⠧', 'w': '⠺', 'x': '⠭', 'y': '⠽',
+  'z': '⠵', ' ': '⠀', '-': '⠤', '.': '⠲', ',': '⠂',
+  '0': '⠴', '1': '⠂', '2': '⠆', '3': '⠒', '4': '⠲',
+  '5': '⠢', '6': '⠖', '7': '⠶', '8': '⠦', '9': '⠔',
+  '!': '⠖', '?': '⠦', "'": '⠄', '"': '⠐⠂', ':': '⠒',
+  ';': '⠆', '(': '⠐⠣', ')': '⠐⠜', '/': '⠸⠌', '\n': '\n',
+};
+
+function toBraille(text) {
+  return text.toLowerCase().split('').map(c => BRAILLE_MAP[c] || c).join('');
+}
+
+function fromBraille(braille) {
+  const reverseMap = {};
+  for (const [k, v] of Object.entries(BRAILLE_MAP)) {
+    reverseMap[v] = k;
+  }
+  return braille.split('').map(c => reverseMap[c] || c).join('');
+}
+
+let showBrailleMode = true; // Toggle for braille display
+
 function appendChatMessage(role, content, images = []) {
   const messages = document.getElementById('chatMessages');
   const msg = document.createElement('div');
@@ -536,18 +564,41 @@ function appendChatMessage(role, content, images = []) {
     msg.appendChild(imageContainer);
   }
   
-  // Add text content
+  // Add text content with braille encoding for assistant messages
   if (content) {
-    const textEl = document.createElement('div');
-    textEl.className = 'chat-text';
-    textEl.textContent = content;
-    msg.appendChild(textEl);
+    if (role === 'assistant' && showBrailleMode) {
+      // Braille-braided response
+      const brailleEl = document.createElement('div');
+      brailleEl.className = 'chat-braille';
+      brailleEl.textContent = toBraille(content);
+      msg.appendChild(brailleEl);
+      
+      // English translation
+      const textEl = document.createElement('div');
+      textEl.className = 'chat-text chat-translation';
+      textEl.innerHTML = `<span class="translation-label">⟶ English:</span> ${content}`;
+      msg.appendChild(textEl);
+    } else {
+      const textEl = document.createElement('div');
+      textEl.className = 'chat-text';
+      textEl.textContent = content;
+      msg.appendChild(textEl);
+    }
   }
   
   messages.appendChild(msg);
   messages.scrollTop = messages.scrollHeight;
   return msg.querySelector('.chat-text') || msg;
 }
+
+function toggleBrailleMode() {
+  showBrailleMode = !showBrailleMode;
+  setStatus(showBrailleMode ? '⠃⠗⠁⠊⠇⠇⠑ Braille mode ON' : 'Braille mode OFF', 'info');
+}
+
+window.toggleBrailleMode = toggleBrailleMode;
+window.toBraille = toBraille;
+window.fromBraille = fromBraille;
 
 document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
 document.getElementById('chatInput')?.addEventListener('keydown', (e) => {

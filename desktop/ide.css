@@ -384,6 +384,33 @@ body {
   max-width: 90%;
 }
 
+/* Braille display for Aria responses */
+.chat-braille {
+  font-family: 'Apple Braille', 'Segoe UI Symbol', monospace;
+  font-size: 16px;
+  letter-spacing: 2px;
+  line-height: 1.6;
+  color: #7dd3fc;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.chat-translation {
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.translation-label {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+  margin-right: 6px;
+}
+
 .chat-message.tool {
   background: #1a3a2c;
   font-size: 11px;
