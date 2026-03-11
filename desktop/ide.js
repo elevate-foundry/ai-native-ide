@@ -518,30 +518,72 @@ async function sendChatMessage() {
   }
 }
 
-// Braille encoding map (from BBID)
-const BRAILLE_MAP = {
+// ============================================================================
+// 8-Dot Braille Encoding (Full Unicode/ASCII support)
+// ============================================================================
+// 8-dot braille uses Unicode range U+2800 to U+28FF (256 patterns)
+// This allows encoding any byte value (0-255), perfect for:
+// - Full ASCII including all punctuation and control chars
+// - UTF-8 byte sequences for non-Latin scripts (Chinese, Japanese, etc.)
+// - Binary data if needed
+//
+// Encoding: Each character's code point is mapped to braille pattern
+// For ASCII (0-127): Direct mapping to braille dots
+// For Unicode (>127): Encode as UTF-8 bytes, each byte becomes a braille cell
+
+const BRAILLE_BASE = 0x2800; // Unicode braille pattern blank (⠀)
+
+// Convert a byte (0-255) to an 8-dot braille character
+function byteToBraille(byte) {
+  return String.fromCodePoint(BRAILLE_BASE + byte);
+}
+
+// Convert an 8-dot braille character back to a byte
+function brailleToByte(brailleChar) {
+  const codePoint = brailleChar.codePointAt(0);
+  if (codePoint >= BRAILLE_BASE && codePoint <= BRAILLE_BASE + 255) {
+    return codePoint - BRAILLE_BASE;
+  }
+  return null; // Not a braille character
+}
+
+// Encode text to 8-dot braille (handles full Unicode)
+function toBraille(text) {
+  const encoder = new TextEncoder(); // UTF-8 encoder
+  const bytes = encoder.encode(text);
+  let result = '';
+  for (const byte of bytes) {
+    result += byteToBraille(byte);
+  }
+  return result;
+}
+
+// Decode 8-dot braille back to text
+function fromBraille(braille) {
+  const bytes = [];
+  for (const char of braille) {
+    const byte = brailleToByte(char);
+    if (byte !== null) {
+      bytes.push(byte);
+    }
+  }
+  const decoder = new TextDecoder('utf-8');
+  return decoder.decode(new Uint8Array(bytes));
+}
+
+// Legacy 6-dot braille map for display purposes (Grade 1 Braille)
+const BRAILLE_6DOT_MAP = {
   'a': '⠁', 'b': '⠃', 'c': '⠉', 'd': '⠙', 'e': '⠑',
   'f': '⠋', 'g': '⠛', 'h': '⠓', 'i': '⠊', 'j': '⠚',
   'k': '⠅', 'l': '⠇', 'm': '⠍', 'n': '⠝', 'o': '⠕',
   'p': '⠏', 'q': '⠟', 'r': '⠗', 's': '⠎', 't': '⠞',
   'u': '⠥', 'v': '⠧', 'w': '⠺', 'x': '⠭', 'y': '⠽',
-  'z': '⠵', ' ': '⠀', '-': '⠤', '.': '⠲', ',': '⠂',
-  '0': '⠴', '1': '⠂', '2': '⠆', '3': '⠒', '4': '⠲',
-  '5': '⠢', '6': '⠖', '7': '⠶', '8': '⠦', '9': '⠔',
-  '!': '⠖', '?': '⠦', "'": '⠄', '"': '⠐⠂', ':': '⠒',
-  ';': '⠆', '(': '⠐⠣', ')': '⠐⠜', '/': '⠸⠌', '\n': '\n',
+  'z': '⠵', ' ': '⠀',
 };
 
-function toBraille(text) {
-  return text.toLowerCase().split('').map(c => BRAILLE_MAP[c] || c).join('');
-}
-
-function fromBraille(braille) {
-  const reverseMap = {};
-  for (const [k, v] of Object.entries(BRAILLE_MAP)) {
-    reverseMap[v] = k;
-  }
-  return braille.split('').map(c => reverseMap[c] || c).join('');
+// Human-readable 6-dot braille (for display, not encoding)
+function toDisplayBraille(text) {
+  return text.toLowerCase().split('').map(c => BRAILLE_6DOT_MAP[c] || byteToBraille(c.charCodeAt(0))).join('');
 }
 
 let showBrailleMode = true; // Toggle for braille display
@@ -599,6 +641,9 @@ function toggleBrailleMode() {
 window.toggleBrailleMode = toggleBrailleMode;
 window.toBraille = toBraille;
 window.fromBraille = fromBraille;
+window.toDisplayBraille = toDisplayBraille;
+window.byteToBraille = byteToBraille;
+window.brailleToByte = brailleToByte;
 
 document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
 document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
