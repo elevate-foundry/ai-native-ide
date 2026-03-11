@@ -40,3 +40,9 @@ test('installer configures npm maxsockets to 10', () => {
   const script = read(INSTALLER_PATH);
   assert.match(script, /npm config set maxsockets 10/);
 });
+
+test('installer is explicit about bash and avoids BSD-incompatible sed -i', () => {
+  const script = read(INSTALLER_PATH);
+  assert.match(script, /Please run this installer with bash/);
+  assert.doesNotMatch(script, /sed -i /);
+});

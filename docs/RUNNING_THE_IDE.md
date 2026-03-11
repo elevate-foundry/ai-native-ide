@@ -29,7 +29,7 @@ Open: <http://127.0.0.1:4173>
 ## 2) One-line installer mode (Ollama style)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
 ```
 
 Then:
@@ -37,6 +37,17 @@ Then:
 ```bash
 ai-native-ide dev
 ```
+
+## 2.1) macOS shell note
+
+If you see this message:
+
+```
+The default interactive shell is now zsh.
+```
+
+that is expected on macOS and does not indicate an install failure.
+Use the installer with `| bash` (not `| sh`) for best compatibility.
 
 ## 3) OS-specific commands
 
@@ -54,7 +65,7 @@ npm run tauri:dev
 ### Installer mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
 ai-native-ide dev
 ```
 
@@ -74,7 +85,7 @@ npm run tauri:dev
 ### Installer mode
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
 ai-native-ide dev
 ```
 
@@ -85,7 +96,7 @@ Recommended: use WSL (Ubuntu) and run the Linux commands above.
 If using Git Bash directly, installer mode also works:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
 ai-native-ide dev
 ```
 

@@ -21,7 +21,7 @@ This repository contains a working prototype of a **runtime-native AI IDE loop**
 ### Option A — one-liner installer (Ollama style)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elevate-foundry/ai-native-ide/main/scripts/install.sh | bash
 ```
 
 After install:
@@ -31,6 +31,9 @@ ai-native-ide dev
 ```
 
 > The URL above should point at your repo's raw `scripts/install.sh`.
+
+If macOS prints “The default interactive shell is now zsh”, that is informational.
+You can still run the installer with bash using the command above (note the `| bash`).
 
 ### Option B — clone and run
 

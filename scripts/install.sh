@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  echo "Please run this installer with bash (e.g. curl ... | bash)." >&2
+  exit 1
+fi
+
 PREFIX="${PREFIX:-/usr/local}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/share/playwright-native-ai-ide}"
 REPO_URL="${REPO_URL:-https://github.com/elevate-foundry/ai-native-ide.git}"
@@ -73,6 +78,11 @@ cat > "$PREFIX/bin/ai-native-ide" <<'LAUNCHER'
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+  echo "Please run this installer with bash (e.g. curl ... | bash)." >&2
+  exit 1
+fi
+
 INSTALL_DIR="${INSTALL_DIR:-__INSTALL_DIR__}"
 
 if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -117,7 +127,10 @@ esac
 LAUNCHER
 
 escaped_install_dir=$(printf '%s' "$INSTALL_DIR" | sed 's/[\/&]/\\&/g')
-sed -i "s/__INSTALL_DIR__/${escaped_install_dir}/g" "$PREFIX/bin/ai-native-ide"
+launcher_tmp="$(mktemp)"
+sed "s/__INSTALL_DIR__/${escaped_install_dir}/g" "$PREFIX/bin/ai-native-ide" > "$launcher_tmp"
+cat "$launcher_tmp" > "$PREFIX/bin/ai-native-ide"
+rm -f "$launcher_tmp"
 chmod +x "$PREFIX/bin/ai-native-ide"
 
 echo "Done."
