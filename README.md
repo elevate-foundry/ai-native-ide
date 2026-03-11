@@ -1,6 +1,6 @@
-# Playwright-Native AI IDE
+# Aria — AI Runtime Interactive Agent
 
-This repository contains a working prototype of a **runtime-native AI IDE loop** inspired by the Playwright-Native AI IDE manifesto.
+This repository contains **Aria**, a working prototype of a runtime-native AI coding assistant inspired by the Playwright-Native AI IDE manifesto.
 
 ## What is included
 
