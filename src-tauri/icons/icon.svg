@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a3e"/>
+      <stop offset="100%" style="stop-color:#2d1b4e"/>
+    </linearGradient>
+    
+    <!-- Cyan glow gradient for A -->
+    <linearGradient id="aGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4fd1c5"/>
+      <stop offset="100%" style="stop-color:#81e6d9"/>
+    </linearGradient>
+    
+    <!-- Gold accent gradient -->
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#d4a853"/>
+      <stop offset="100%" style="stop-color:#e6c87a"/>
+    </linearGradient>
+    
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Strong glow for nodes -->
+    <filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Rounded square background -->
+  <rect x="16" y="16" width="480" height="480" rx="80" ry="80" fill="url(#bgGrad)"/>
+  
+  <!-- Shield outline (subtle) -->
+  <path d="M256 60 L420 120 L420 280 Q420 400 256 460 Q92 400 92 280 L92 120 Z" 
+        fill="none" stroke="url(#goldGrad)" stroke-width="3" opacity="0.4"/>
+  
+  <!-- Neural network connections -->
+  <g opacity="0.6">
+    <line x1="138.23075899771916" y1="223.96373276783328" x2="155.30812028576997" y2="257.88669115765333" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="138.23075899771916" y1="223.96373276783328" x2="132.11161377472413" y2="150.36468030436183" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="138.23075899771916" y1="223.96373276783328" x2="84.90616858233984" y2="165.26306392870055" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="138.23075899771916" y1="223.96373276783328" x2="108.73636187461035" y2="319.4065762494721" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="138.23075899771916" y1="223.96373276783328" x2="116.18867398993515" y2="171.26585962775437" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="171.49397615878564" y1="259.7431135828342" x2="132.11161377472413" y2="150.36468030436183" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="171.49397615878564" y1="259.7431135828342" x2="108.73636187461035" y2="319.4065762494721" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="171.49397615878564" y1="259.7431135828342" x2="151.04032042950405" y2="254.27634245449508" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="155.30812028576997" y1="257.88669115765333" x2="132.11161377472413" y2="150.36468030436183" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="155.30812028576997" y1="257.88669115765333" x2="84.90616858233984" y2="165.26306392870055" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="155.30812028576997" y1="257.88669115765333" x2="116.18867398993515" y2="171.26585962775437" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="132.11161377472413" y1="150.36468030436183" x2="84.90616858233984" y2="165.26306392870055" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="132.11161377472413" y1="150.36468030436183" x2="116.18867398993515" y2="171.26585962775437" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="84.90616858233984" y1="165.26306392870055" x2="116.18867398993515" y2="171.26585962775437" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="108.73636187461035" y1="319.4065762494721" x2="151.04032042950405" y2="254.27634245449508" 
+             stroke="#4fd1c5" stroke-width="2"/>
+    <line x1="151.04032042950405" y1="254.27634245449508" x2="116.18867398993515" y2="171.26585962775437" 
+             stroke="#4fd1c5" stroke-width="2"/>
+  </g>
+  
+  <!-- Neural network nodes -->
+  <g filter="url(#nodeGlow)">
+    <circle cx="138.23075899771916" cy="223.96373276783328" r="6" fill="#4fd1c5"/>
+    <circle cx="171.49397615878564" cy="259.7431135828342" r="6" fill="#4fd1c5"/>
+    <circle cx="155.30812028576997" cy="257.88669115765333" r="6" fill="#4fd1c5"/>
+    <circle cx="132.11161377472413" cy="150.36468030436183" r="6" fill="#4fd1c5"/>
+    <circle cx="84.90616858233984" cy="165.26306392870055" r="6" fill="#4fd1c5"/>
+    <circle cx="108.73636187461035" cy="319.4065762494721" r="6" fill="#4fd1c5"/>
+    <circle cx="151.04032042950405" cy="254.27634245449508" r="6" fill="#4fd1c5"/>
+    <circle cx="116.18867398993515" cy="171.26585962775437" r="6" fill="#4fd1c5"/>
+  </g>
+  
+  <!-- Main "A" letter -->
+  <g filter="url(#glow)">
+    <path d="M256 100 L180 360 L210 360 L225 310 L287 310 L302 360 L332 360 L256 100 Z
+             M235 280 L256 200 L277 280 Z" 
+          fill="url(#aGrad)" stroke="#81e6d9" stroke-width="2"/>
+  </g>
+  
+  <!-- Gold accent on right side of A -->
+  <path d="M290 140 L332 360 L340 360 L298 140 Z" 
+        fill="url(#goldGrad)" opacity="0.7"/>
+  
+  <!-- Code brackets {} -->
+  <g fill="none" stroke="#63b3ed" stroke-width="6" stroke-linecap="round" opacity="0.9">
+    <!-- Left bracket { -->
+    <path d="M355 160 Q340 160 340 180 L340 240 Q340 256 325 256 Q340 256 340 272 L340 332 Q340 352 355 352"/>
+    <!-- Right bracket } -->
+    <path d="M385 160 Q400 160 400 180 L400 240 Q400 256 415 256 Q400 256 400 272 L400 332 Q400 352 385 352"/>
+  </g>
+  
+  <!-- Loop arrow beneath -->
+  <g fill="none" stroke="#a0aec0" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M180 380 Q180 420 256 420 Q332 420 332 380"/>
+    <!-- Arrow head -->
+    <path d="M320 368 L332 380 L320 392"/>
+  </g>
+  
+  <!-- "IDE" label -->
+  <text x="256" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" 
+        font-size="28" font-weight="600" fill="#e2e8f0" letter-spacing="4">IDE</text>
+</svg>

@@ -8,11 +8,42 @@ const port = Number(process.env.PORT || 4173);
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.avif': 'image/avif',
+  '.gif': 'image/gif',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.map': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.wasm': 'application/wasm',
+  '.pdf': 'application/pdf',
+  '.zip': 'application/zip',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav'
 };
 
 const server = http.createServer(async (req, res) => {
-  const requestPath = req.url === '/' ? '/index.html' : req.url;
+  // Check for IDE mode
+  const isIDE = process.env.IDE_MODE === 'true' || req.url.startsWith('/ide');
+  let requestPath = req.url === '/' ? (isIDE ? '/ide.html' : '/index.html') : req.url;
+  
+  // Redirect /ide to /ide.html
+  if (requestPath === '/ide') requestPath = '/ide.html';
   const filePath = path.resolve(root, `.${requestPath}`);
 
   if (!filePath.startsWith(root)) {
