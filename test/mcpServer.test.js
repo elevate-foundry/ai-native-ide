@@ -52,6 +52,9 @@ test('mcp server script exists and includes core MCP methods', () => {
   assert.match(content, /method === 'tools\/call'/);
   assert.match(content, /run_runtime_loop/);
   assert.match(content, /get_interface_sensor_snapshot/);
+  assert.match(content, /read_file/);
+  assert.match(content, /write_file/);
+  assert.match(content, /run_shell/);
 });
 
 test('mcp server responds to initialize and tool calls', async () => {
@@ -88,7 +91,7 @@ test('mcp server responds to initialize and tool calls', async () => {
 
     const toolList = await request(2, 'tools/list', {});
     const toolNames = toolList.result.tools.map((tool) => tool.name);
-    assert.deepEqual(toolNames.sort(), ['get_interface_sensor_snapshot', 'run_runtime_loop']);
+    assert.deepEqual(toolNames.sort(), ['get_interface_sensor_snapshot', 'read_file', 'run_runtime_loop', 'run_shell', 'write_file']);
 
     const toolCall = await request(3, 'tools/call', {
       name: 'run_runtime_loop',

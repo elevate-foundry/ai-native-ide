@@ -1,7 +1,53 @@
 #!/usr/bin/env node
 import { RuntimeNativeIDE, PlaywrightInterfaceObserver } from '../src/index.js';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { execSync } from 'child_process';
+import { resolve, isAbsolute } from 'path';
 
 const PROTOCOL_VERSION = '2024-11-05';
+const WORKSPACE_ROOT = process.cwd();
+
+function safeReadFile(relativePath) {
+  const safePath = resolvePath(relativePath);
+  try {
+    return readFileSync(safePath, 'utf8');
+  } catch (e) {
+    throw new Error(`Failed to read file: ${e.message}`);
+  }
+}
+
+function safeWriteFile(relativePath, content) {
+  const safePath = resolvePath(relativePath);
+  try {
+    writeFileSync(safePath, content, 'utf8');
+    return `Wrote ${relativePath}`;
+  } catch (e) {
+    throw new Error(`Failed to write file: ${e.message}`);
+  }
+}
+
+function safeRunShell(command) {
+  if (!command || typeof command !== 'string') {
+    throw new Error('Command is required');
+  }
+  const dangerous = ['rm -rf /', 'mkfs', 'dd if=', '> /dev/sda'];
+  if (dangerous.some(d => command.includes(d))) {
+    throw new Error('Command blocked for safety');
+  }
+  try {
+    return execSync(command, { cwd: WORKSPACE_ROOT, encoding: 'utf8', timeout: 30000 });
+  } catch (e) {
+    return e.stdout + e.stderr;
+  }
+}
+
+function resolvePath(relativePath) {
+  const resolved = isAbsolute(relativePath) ? relativePath : resolve(WORKSPACE_ROOT, relativePath);
+  if (!resolved.startsWith(WORKSPACE_ROOT)) {
+    throw new Error('Path outside workspace not allowed');
+  }
+  return resolved;
+}
 
 let readBuffer = '';
 
@@ -114,6 +160,40 @@ async function handleRequest(request) {
             properties: {},
           },
         },
+        {
+          name: 'read_file',
+          description: 'Read the contents of a file from the workspace.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Relative path to the file' },
+            },
+            required: ['path'],
+          },
+        },
+        {
+          name: 'write_file',
+          description: 'Write content to a file in the workspace.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'Relative path to the file' },
+              content: { type: 'string', description: 'Content to write' },
+            },
+            required: ['path', 'content'],
+          },
+        },
+        {
+          name: 'run_shell',
+          description: 'Run a shell command in the workspace directory.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              command: { type: 'string', description: 'Shell command to execute' },
+            },
+            required: ['command'],
+          },
+        },
       ],
     });
     return;
@@ -146,6 +226,24 @@ async function handleRequest(request) {
           },
         ],
       });
+      return;
+    }
+
+    if (name === 'read_file') {
+      const data = safeReadFile(argumentsPayload.path);
+      sendResult(id, { content: [{ type: 'text', text: data }] });
+      return;
+    }
+
+    if (name === 'write_file') {
+      const data = safeWriteFile(argumentsPayload.path, argumentsPayload.content);
+      sendResult(id, { content: [{ type: 'text', text: data }] });
+      return;
+    }
+
+    if (name === 'run_shell') {
+      const data = safeRunShell(argumentsPayload.command);
+      sendResult(id, { content: [{ type: 'text', text: data }] });
       return;
     }
 
