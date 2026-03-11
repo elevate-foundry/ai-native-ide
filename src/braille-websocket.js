@@ -15,6 +15,7 @@
 
 const WebSocket = require('ws');
 const EventEmitter = require('events');
+const { BrailleSwarm, ModelRegistry } = require('./braille-swarm.js');
 
 const BRAILLE_BASE = 0x2800;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -301,16 +302,47 @@ class BrailleWebSocketServer extends EventEmitter {
     this.port = options.port || 3201;
     this.wss = null;
     this.clients = new Map();
-    this.swarm = new BrailleSwarm();
+    this.legacySwarm = new BrailleSwarm();
+    this.massiveSwarm = new BrailleSwarm(); // From braille-swarm.js
+    this.initialized = false;
     
-    // Set up default agents
-    this.swarm.addAgent('claude', 'anthropic/claude-3.5-sonnet');
-    this.swarm.addAgent('gpt4', 'openai/gpt-4o');
-    this.swarm.addAgent('deepseek', 'deepseek/deepseek-chat');
+    // Set up default legacy agents
+    this.legacySwarm.addAgent('claude', 'anthropic/claude-3.5-sonnet');
+    this.legacySwarm.addAgent('gpt4', 'openai/gpt-4o');
+    this.legacySwarm.addAgent('deepseek', 'deepseek/deepseek-chat');
+  }
+
+  async initializeMassiveSwarm() {
+    if (this.initialized) return;
+    
+    console.log('[BrailleWS] Initializing massive swarm with all OpenRouter models...');
+    const stats = await this.massiveSwarm.initialize();
+    
+    // Create agents for key categories
+    this.massiveSwarm.createCategoryAgents('flagship');
+    this.massiveSwarm.createCategoryAgents('reasoning');
+    this.massiveSwarm.createCategoryAgents('coding');
+    this.massiveSwarm.createCategoryAgents('fast');
+    
+    // Create some open-source agents
+    const openModels = this.massiveSwarm.getModelsByCategory('open').slice(0, 20);
+    for (const modelId of openModels) {
+      this.massiveSwarm.createAgent(modelId);
+    }
+    
+    this.initialized = true;
+    console.log(`[BrailleWS] Massive swarm ready with ${this.massiveSwarm.agents.size} agents`);
+    
+    return stats;
   }
 
   start() {
     this.wss = new WebSocket.Server({ port: this.port });
+    
+    // Initialize massive swarm in background
+    this.initializeMassiveSwarm().catch(e => {
+      console.error('[BrailleWS] Failed to initialize massive swarm:', e);
+    });
     
     this.wss.on('connection', (ws, req) => {
       const clientId = `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -348,12 +380,25 @@ class BrailleWebSocketServer extends EventEmitter {
     });
     
     // Forward swarm events to all clients
-    this.swarm.on('agentChunk', (data) => {
+    this.legacySwarm.on('agentChunk', (data) => {
       this.broadcast({ type: 'agentChunk', ...data });
     });
     
-    this.swarm.on('agentComplete', (data) => {
+    this.legacySwarm.on('agentComplete', (data) => {
       this.broadcast({ type: 'agentComplete', ...data });
+    });
+    
+    // Forward massive swarm events
+    this.massiveSwarm.on('agentResponse', (data) => {
+      this.broadcast({ type: 'massiveSwarmResponse', ...data });
+    });
+    
+    this.massiveSwarm.on('broadcastComplete', (data) => {
+      this.broadcast({ type: 'massiveBroadcastComplete', ...data });
+    });
+    
+    this.massiveSwarm.on('consensusComplete', (data) => {
+      this.broadcast({ type: 'consensusComplete', ...data });
     });
     
     console.log(`[BrailleWS] Server started on port ${this.port}`);
@@ -373,8 +418,28 @@ class BrailleWebSocketServer extends EventEmitter {
         break;
         
       case 'swarm':
-        // Multi-agent swarm conversation
+        // Multi-agent swarm conversation (legacy 3 agents)
         await this.handleSwarm(ws, message);
+        break;
+        
+      case 'massiveSwarm':
+        // Massive swarm with all OpenRouter models
+        await this.handleMassiveSwarm(ws, message);
+        break;
+        
+      case 'broadcast':
+        // Broadcast to many agents at once
+        await this.handleBroadcast(ws, message);
+        break;
+        
+      case 'consensus':
+        // Ask all agents and find consensus
+        await this.handleConsensus(ws, message);
+        break;
+        
+      case 'listModels':
+        // List all available models
+        await this.handleListModels(ws, message);
         break;
         
       case 'encode':
@@ -402,10 +467,19 @@ class BrailleWebSocketServer extends EventEmitter {
   async handleChat(ws, message) {
     const { text, agent = 'claude', brailleMode = true } = message;
     
-    const llmAgent = this.swarm.agents.get(agent);
+    // Try legacy swarm first, then massive swarm
+    let llmAgent = this.legacySwarm.agents.get(agent);
+    if (!llmAgent && this.massiveSwarm.agents.has(agent)) {
+      llmAgent = this.massiveSwarm.agents.get(agent);
+    }
     if (!llmAgent) {
-      ws.send(JSON.stringify({ type: 'error', error: `Unknown agent: ${agent}` }));
-      return;
+      // Try to create agent on-the-fly from massive swarm
+      if (this.initialized && this.massiveSwarm.registry.getModel(agent)) {
+        llmAgent = this.massiveSwarm.createAgent(agent);
+      } else {
+        ws.send(JSON.stringify({ type: 'error', error: `Unknown agent: ${agent}` }));
+        return;
+      }
     }
     
     llmAgent.brailleMode = brailleMode;
@@ -434,7 +508,7 @@ class BrailleWebSocketServer extends EventEmitter {
       inputBraille: toBraille(text),
     }));
     
-    const log = await this.swarm.runConversation(text, agents, {
+    const log = await this.legacySwarm.runConversation(text, agents, {
       maxRounds: rounds,
       onMessage: (msg) => {
         ws.send(JSON.stringify({ type: 'swarmMessage', ...msg }));
@@ -442,6 +516,132 @@ class BrailleWebSocketServer extends EventEmitter {
     });
     
     ws.send(JSON.stringify({ type: 'swarmComplete', log }));
+  }
+
+  async handleMassiveSwarm(ws, message) {
+    const { text, category = 'flagship', maxAgents = 10, rounds = 1 } = message;
+    
+    if (!this.initialized) {
+      ws.send(JSON.stringify({ type: 'error', error: 'Massive swarm not initialized yet' }));
+      return;
+    }
+    
+    // Get agents from category
+    let agentIds = this.massiveSwarm.getModelsByCategory(category).slice(0, maxAgents);
+    
+    // Create agents if needed
+    for (const id of agentIds) {
+      if (!this.massiveSwarm.agents.has(id)) {
+        this.massiveSwarm.createAgent(id);
+      }
+    }
+    
+    ws.send(JSON.stringify({
+      type: 'massiveSwarmStart',
+      category,
+      agents: agentIds,
+      rounds,
+      inputBraille: toBraille(text),
+    }));
+    
+    const log = await this.massiveSwarm.roundRobin(text, {
+      agents: agentIds,
+      rounds,
+      onMessage: (msg) => {
+        ws.send(JSON.stringify({ type: 'massiveSwarmMessage', ...msg }));
+      },
+    });
+    
+    ws.send(JSON.stringify({ type: 'massiveSwarmComplete', log }));
+  }
+
+  async handleBroadcast(ws, message) {
+    const { text, category = 'fast', maxAgents = 20 } = message;
+    
+    if (!this.initialized) {
+      ws.send(JSON.stringify({ type: 'error', error: 'Massive swarm not initialized yet' }));
+      return;
+    }
+    
+    let agentIds = this.massiveSwarm.getModelsByCategory(category).slice(0, maxAgents);
+    
+    // Create agents if needed
+    for (const id of agentIds) {
+      if (!this.massiveSwarm.agents.has(id)) {
+        this.massiveSwarm.createAgent(id);
+      }
+    }
+    
+    ws.send(JSON.stringify({
+      type: 'broadcastStart',
+      category,
+      agentCount: agentIds.length,
+      inputBraille: toBraille(text),
+    }));
+    
+    const results = await this.massiveSwarm.broadcast(text, {
+      agents: agentIds,
+      maxConcurrent: 10,
+      onResponse: (result) => {
+        ws.send(JSON.stringify({ type: 'broadcastResponse', ...result }));
+      },
+    });
+    
+    ws.send(JSON.stringify({ type: 'broadcastComplete', total: results.length }));
+  }
+
+  async handleConsensus(ws, message) {
+    const { question, category = 'flagship', maxAgents = 15 } = message;
+    
+    if (!this.initialized) {
+      ws.send(JSON.stringify({ type: 'error', error: 'Massive swarm not initialized yet' }));
+      return;
+    }
+    
+    let agentIds = this.massiveSwarm.getModelsByCategory(category).slice(0, maxAgents);
+    
+    // Create agents if needed
+    for (const id of agentIds) {
+      if (!this.massiveSwarm.agents.has(id)) {
+        this.massiveSwarm.createAgent(id);
+      }
+    }
+    
+    ws.send(JSON.stringify({
+      type: 'consensusStart',
+      question,
+      category,
+      agentCount: agentIds.length,
+    }));
+    
+    const result = await this.massiveSwarm.consensus(question, {
+      agents: agentIds,
+      onVote: (vote) => {
+        ws.send(JSON.stringify({ type: 'consensusVote', ...vote }));
+      },
+    });
+    
+    ws.send(JSON.stringify({ type: 'consensusResult', ...result }));
+  }
+
+  async handleListModels(ws, message) {
+    const { category } = message;
+    
+    if (!this.initialized) {
+      await this.initializeMassiveSwarm();
+    }
+    
+    const stats = this.massiveSwarm.getStats();
+    const models = category 
+      ? this.massiveSwarm.getModelsByCategory(category)
+      : this.massiveSwarm.getAvailableModels();
+    
+    ws.send(JSON.stringify({
+      type: 'modelList',
+      stats,
+      models: category ? models : models.map(m => ({ id: m.id, name: m.name })),
+      category,
+    }));
   }
 
   async handleFeedback(ws, message) {
@@ -458,8 +658,8 @@ class BrailleWebSocketServer extends EventEmitter {
       decodedText: text,
     }));
     
-    // Send to target agent
-    const agent = this.swarm.agents.get(toAgent);
+    // Send to target agent (try both swarms)
+    let agent = this.legacySwarm.agents.get(toAgent) || this.massiveSwarm.agents.get(toAgent);
     if (agent) {
       await agent.streamChat(text, (chunk) => {
         ws.send(JSON.stringify({ type: 'feedbackChunk', toAgent, ...chunk }));
