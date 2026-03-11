@@ -412,8 +412,13 @@ body {
   border-color: var(--accent);
 }
 
-.chat-input-area button {
-  width: 100%;
+.chat-input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input-actions button {
+  flex: 1;
   padding: 8px;
   background: var(--accent);
   border: none;
@@ -423,8 +428,85 @@ body {
   cursor: pointer;
 }
 
-.chat-input-area button:hover {
+.chat-input-actions button:hover {
   background: var(--accent-hover);
+}
+
+.chat-input-actions .image-btn {
+  flex: 0;
+  width: 40px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.chat-input-actions .image-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* Image Preview */
+.image-preview {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-image-container {
+  position: relative;
+}
+
+.preview-image {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.remove-image {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--error);
+  color: white;
+  border: none;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Chat Images */
+.chat-images {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-image {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.chat-image:hover {
+  border-color: var(--accent);
+}
+
+/* Drag over state */
+.sidebar-panel.drag-over {
+  background: rgba(88, 166, 255, 0.1);
+  border: 2px dashed var(--accent);
 }
 
 /* Editor Area */

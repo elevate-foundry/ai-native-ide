@@ -434,13 +434,26 @@ document.getElementById('toggleTerminal')?.addEventListener('click', () => {
 // Chat with Aria
 // ============================================================================
 
+let pendingImages = []; // Images to send with next message
+
 async function sendChatMessage() {
   const input = document.getElementById('chatInput');
   const message = input.value.trim();
-  if (!message) return;
+  if (!message && pendingImages.length === 0) return;
   
   input.value = '';
-  appendChatMessage('user', message);
+  
+  // Show user message with image previews
+  if (pendingImages.length > 0) {
+    appendChatMessage('user', message, pendingImages);
+  } else {
+    appendChatMessage('user', message);
+  }
+  
+  // Prepare images for API
+  const images = [...pendingImages];
+  pendingImages = [];
+  updateImagePreview();
   
   try {
     const response = await fetch(`${ARIA_SERVER}/chat`, {
@@ -448,6 +461,7 @@ async function sendChatMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         message,
+        images, // Base64 encoded images
         context: {
           currentFile,
           fileContent: currentFile ? editor?.getValue() : null,
@@ -504,14 +518,35 @@ async function sendChatMessage() {
   }
 }
 
-function appendChatMessage(role, content) {
+function appendChatMessage(role, content, images = []) {
   const messages = document.getElementById('chatMessages');
   const msg = document.createElement('div');
   msg.className = `chat-message ${role}`;
-  msg.textContent = content;
+  
+  // Add images if present
+  if (images.length > 0) {
+    const imageContainer = document.createElement('div');
+    imageContainer.className = 'chat-images';
+    images.forEach(imgData => {
+      const img = document.createElement('img');
+      img.src = imgData;
+      img.className = 'chat-image';
+      imageContainer.appendChild(img);
+    });
+    msg.appendChild(imageContainer);
+  }
+  
+  // Add text content
+  if (content) {
+    const textEl = document.createElement('div');
+    textEl.className = 'chat-text';
+    textEl.textContent = content;
+    msg.appendChild(textEl);
+  }
+  
   messages.appendChild(msg);
   messages.scrollTop = messages.scrollHeight;
-  return msg;
+  return msg.querySelector('.chat-text') || msg;
 }
 
 document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
@@ -525,6 +560,108 @@ document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
 document.getElementById('clearChatBtn')?.addEventListener('click', () => {
   document.getElementById('chatMessages').innerHTML = '';
 });
+
+// ============================================================================
+// Image Paste/Upload Support
+// ============================================================================
+
+// Handle paste events for images
+document.getElementById('chatInput')?.addEventListener('paste', async (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      await addImageFromFile(file);
+    }
+  }
+});
+
+// Handle drag and drop
+const chatPanel = document.getElementById('chatPanel');
+chatPanel?.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  chatPanel.classList.add('drag-over');
+});
+
+chatPanel?.addEventListener('dragleave', () => {
+  chatPanel.classList.remove('drag-over');
+});
+
+chatPanel?.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  chatPanel.classList.remove('drag-over');
+  
+  const files = e.dataTransfer?.files;
+  if (!files) return;
+  
+  for (const file of files) {
+    if (file.type.startsWith('image/')) {
+      await addImageFromFile(file);
+    }
+  }
+});
+
+async function addImageFromFile(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      pendingImages.push(dataUrl);
+      updateImagePreview();
+      resolve();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateImagePreview() {
+  let preview = document.getElementById('imagePreview');
+  
+  if (pendingImages.length === 0) {
+    preview?.remove();
+    return;
+  }
+  
+  if (!preview) {
+    preview = document.createElement('div');
+    preview.id = 'imagePreview';
+    preview.className = 'image-preview';
+    const inputArea = document.querySelector('.chat-input-area');
+    inputArea?.insertBefore(preview, inputArea.firstChild);
+  }
+  
+  preview.innerHTML = pendingImages.map((img, i) => `
+    <div class="preview-image-container">
+      <img src="${img}" class="preview-image" />
+      <button class="remove-image" onclick="removeImage(${i})">✕</button>
+    </div>
+  `).join('');
+}
+
+function removeImage(index) {
+  pendingImages.splice(index, 1);
+  updateImagePreview();
+}
+
+// Add image button click handler
+function openImagePicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.onchange = async (e) => {
+    for (const file of e.target.files) {
+      await addImageFromFile(file);
+    }
+  };
+  input.click();
+}
+
+window.removeImage = removeImage;
+window.openImagePicker = openImagePicker;
 
 // ============================================================================
 // Pending Changes (Diff View)

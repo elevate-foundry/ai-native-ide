@@ -70,8 +70,11 @@
           </div>
           <div class="chat-messages" id="chatMessages"></div>
           <div class="chat-input-area">
-            <textarea id="chatInput" placeholder="Ask Aria to help with code..." rows="3"></textarea>
-            <button id="sendChatBtn">Send</button>
+            <textarea id="chatInput" placeholder="Ask Aria to help with code... (paste images with Cmd+V)" rows="3"></textarea>
+            <div class="chat-input-actions">
+              <button onclick="openImagePicker()" class="image-btn" title="Add image (or paste with Cmd+V)">🖼️</button>
+              <button id="sendChatBtn">Send</button>
+            </div>
           </div>
         </div>
         

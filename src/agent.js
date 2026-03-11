@@ -142,14 +142,31 @@ class AriaAgent {
     return finalResponse;
   }
 
-  async chatStream(userMessage) {
+  async chatStream(userMessage, options = {}) {
     // Check for compaction before adding new message
     await this.maybeCompact();
+    
+    // Build user message content (text + images)
+    const { images } = options;
+    let userContent;
+    
+    if (images && images.length > 0) {
+      // Multi-modal message with images
+      userContent = [
+        { type: 'text', text: userMessage || 'What do you see in this image?' },
+        ...images.map(img => ({
+          type: 'image_url',
+          image_url: { url: img }, // Base64 data URL
+        })),
+      ];
+    } else {
+      userContent = userMessage;
+    }
     
     // Add user message to history
     this.conversationHistory.push({
       role: 'user',
-      content: userMessage,
+      content: userContent,
     });
 
     let iterations = 0;

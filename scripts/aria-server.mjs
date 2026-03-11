@@ -345,11 +345,11 @@ const server = http.createServer(async (req, res) => {
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { message } = JSON.parse(body);
+        const { message, images } = JSON.parse(body);
         
-        if (!message) {
+        if (!message && (!images || images.length === 0)) {
           res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'message is required' }));
+          res.end(JSON.stringify({ error: 'message or images required' }));
           return;
         }
 
@@ -384,7 +384,8 @@ const server = http.createServer(async (req, res) => {
         };
 
         try {
-          const response = await agent.chatStream(message);
+          // Pass images to the agent if present
+          const response = await agent.chatStream(message, { images });
           res.write(`data: ${JSON.stringify({ type: 'done', content: response })}\n\n`);
         } catch (error) {
           res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
