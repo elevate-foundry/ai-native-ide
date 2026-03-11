@@ -102,6 +102,25 @@ ai-native-ide sockets
 ai-native-ide tune
 ```
 
+## MCP server
+
+You can run an MCP (Model Context Protocol) server over stdio:
+
+```bash
+npm run mcp
+```
+
+If you installed the launcher:
+
+```bash
+ai-native-ide mcp
+```
+
+The MCP server exposes two tools:
+
+- `run_runtime_loop`
+- `get_interface_sensor_snapshot`
+
 ## Quick start
 
 ```bash
@@ -158,7 +177,8 @@ The test suite currently covers:
 - semantic browser action call order,
 - Tauri scaffold contract checks (scripts/config/commands),
 - installer script and launcher contract checks,
-- socket monitor contract checks.
+- socket monitor contract checks,
+- MCP server tool discovery and calls.
 
 ## Project structure
 
@@ -171,6 +191,7 @@ The test suite currently covers:
 - `scripts/serve-desktop.mjs` — static dev server for desktop frontend preview.
 - `scripts/install.sh` — one-line install entrypoint.
 - `scripts/monitor-sockets.mjs` — socket count monitor.
+- `scripts/mcp-server.mjs` — stdio MCP server with runtime tools.
 - `test/core.test.js` — loop, sensor, and observer tests.
 - `test/semanticActions.test.js` — semantic interaction tests.
 - `test/desktopScaffold.test.js` — desktop shell scaffold tests.

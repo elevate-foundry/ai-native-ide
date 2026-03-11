@@ -12,6 +12,7 @@
     "install:local": "bash scripts/install.sh --repo-url \"$(pwd)\" --branch \"$(git rev-parse --abbrev-ref HEAD)\" --prefix \"$HOME/.local\"",
     "monitor:sockets": "node scripts/monitor-sockets.mjs",
     "monitor:sockets:once": "node scripts/monitor-sockets.mjs --once",
-    "npm:maxsockets": "npm config set maxsockets 10"
+    "npm:maxsockets": "npm config set maxsockets 10",
+    "mcp": "node scripts/mcp-server.mjs"
   }
 }

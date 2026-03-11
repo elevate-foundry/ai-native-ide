@@ -119,8 +119,11 @@ case "$COMMAND" in
   tune)
     npm run npm:maxsockets -- "$@"
     ;;
+  mcp)
+    npm run mcp -- "$@"
+    ;;
   *)
-    echo "Usage: ai-native-ide [dev|web|test|sockets|sockets:once|tune] [args...]" >&2
+    echo "Usage: ai-native-ide [dev|web|test|sockets|sockets:once|tune|mcp] [args...]" >&2
     exit 1
     ;;
 esac

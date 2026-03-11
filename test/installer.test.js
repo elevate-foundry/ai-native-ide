@@ -25,6 +25,7 @@ test('installer creates ai-native-ide launcher and supports commands', () => {
   assert.match(script, /sockets\)/);
   assert.match(script, /sockets:once\)/);
   assert.match(script, /tune\)/);
+  assert.match(script, /mcp\)/);
 });
 
 test('installer supports Ollama-style env customization', () => {

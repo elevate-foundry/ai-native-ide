@@ -156,3 +156,18 @@ npm run npm:maxsockets
 - Node + npm
 - Rust (for Tauri desktop mode)
 - Tauri CLI (`cargo install tauri-cli --version '^2.0.0'`)
+
+## MCP mode (all platforms)
+
+If you want to connect an MCP client (for example, an editor or agent host), run:
+
+```bash
+ai-native-ide mcp
+```
+
+Or from the repository:
+
+```bash
+npm run mcp
+```
+
