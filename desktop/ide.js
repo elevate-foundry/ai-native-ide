@@ -494,12 +494,20 @@ async function sendChatMessage() {
           try {
             const data = JSON.parse(line.slice(6));
             
-            if (data.type === 'content') {
+            if (data.type === 'chunk' || data.type === 'content') {
               assistantMessage += data.content;
               if (!messageEl) {
                 messageEl = appendChatMessage('assistant', assistantMessage);
               } else {
-                messageEl.textContent = assistantMessage;
+                // Update both braille and English text during streaming
+                const parent = messageEl.closest('.chat-message');
+                const brailleEl = parent?.querySelector('.chat-braille');
+                if (brailleEl && showBrailleMode) {
+                  brailleEl.textContent = toBraille(assistantMessage);
+                }
+                messageEl.innerHTML = showBrailleMode 
+                  ? `<span class="translation-label">⟶ English:</span> ${assistantMessage}`
+                  : assistantMessage;
               }
             } else if (data.type === 'tool_call') {
               appendChatMessage('tool', `🔧 ${data.name}: ${JSON.stringify(data.args).slice(0, 100)}...`);
@@ -613,8 +621,9 @@ function appendChatMessage(role, content, images = []) {
   
   // Add text content with braille encoding for assistant messages
   if (content) {
-    if (role === 'assistant' && showBrailleMode) {
-      // Braille-braided response
+    // Always show braille first for assistant messages
+    if (role === 'assistant') {
+      // Braille-encoded response (the "bottleneck")
       const brailleEl = document.createElement('div');
       brailleEl.className = 'chat-braille';
       brailleEl.textContent = toBraille(content);
@@ -1010,13 +1019,39 @@ document.getElementById('brailleInput')?.addEventListener('keydown', (e) => {
   }
 });
 
-document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
-document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendChatMessage();
+// Ensure chat event listeners are attached after DOM is ready
+function initChatListeners() {
+  const sendBtn = document.getElementById('sendChatBtn');
+  const chatInput = document.getElementById('chatInput');
+  
+  if (sendBtn) {
+    sendBtn.addEventListener('click', sendChatMessage);
+    console.log('[Aria] Send button listener attached');
+  } else {
+    console.error('[Aria] sendChatBtn not found!');
   }
-});
+  
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
+    console.log('[Aria] Chat input listener attached');
+  } else {
+    console.error('[Aria] chatInput not found!');
+  }
+}
+
+// Run immediately and also on DOMContentLoaded as fallback
+initChatListeners();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initChatListeners);
+}
+
+// Expose sendChatMessage globally for onclick fallback
+window.sendChatMessage = sendChatMessage;
 
 document.getElementById('clearChatBtn')?.addEventListener('click', () => {
   document.getElementById('chatMessages').innerHTML = '';

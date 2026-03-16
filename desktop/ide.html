@@ -36,12 +36,12 @@
       <!-- Left Sidebar: File Tree + Chat -->
       <aside class="sidebar left" id="leftSidebar">
         <div class="sidebar-tabs">
-          <button class="sidebar-tab active" data-panel="files">📁 Files</button>
-          <button class="sidebar-tab" data-panel="chat">💬 Chat</button>
+          <button class="sidebar-tab" data-panel="files">📁 Files</button>
+          <button class="sidebar-tab active" data-panel="chat">💬 Chat</button>
         </div>
         
         <!-- File Tree Panel -->
-        <div class="sidebar-panel active" id="filesPanel">
+        <div class="sidebar-panel" id="filesPanel">
           <div class="panel-header">
             <span>Explorer</span>
             <div class="panel-actions">
@@ -63,7 +63,7 @@
         </div>
         
         <!-- Chat Panel -->
-        <div class="sidebar-panel" id="chatPanel">
+        <div class="sidebar-panel active" id="chatPanel">
           <div class="panel-header">
             <span>Chat with Aria</span>
             <button onclick="toggleBrailleMode()" title="Toggle Braille Mode" id="brailleToggle">⠃⠗</button>
@@ -71,10 +71,10 @@
           </div>
           <div class="chat-messages" id="chatMessages"></div>
           <div class="chat-input-area">
-            <textarea id="chatInput" placeholder="Ask Aria to help with code... (paste images with Cmd+V)" rows="3"></textarea>
+            <textarea id="chatInput" placeholder="Ask Aria to help with code... (paste images with Cmd+V)" rows="3" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendChatMessage();}"></textarea>
             <div class="chat-input-actions">
               <button onclick="openImagePicker()" class="image-btn" title="Add image (or paste with Cmd+V)">🖼️</button>
-              <button id="sendChatBtn">Send</button>
+              <button id="sendChatBtn" onclick="sendChatMessage()">Send</button>
             </div>
           </div>
         </div>
@@ -282,6 +282,6 @@
       </div>
     </footer>
 
-    <script type="module" src="./ide.js"></script>
+    <script type="module" src="./ide.js?v=3"></script>
   </body>
 </html>

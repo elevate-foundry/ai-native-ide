@@ -50,6 +50,52 @@ const CODE_EXTENSIONS = new Set([
 ]);
 
 const PORT = process.env.ARIA_PORT || 3200;
+const DESKTOP_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'desktop');
+
+// MIME types for static files
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+// Serve static file from desktop directory
+function serveStatic(req, res, filePath) {
+  const fullPath = path.join(DESKTOP_DIR, filePath);
+  
+  // Security: prevent directory traversal
+  if (!fullPath.startsWith(DESKTOP_DIR)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+  
+  fs.readFile(fullPath, (err, data) => {
+    if (err) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('Not found');
+      return;
+    }
+    
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    
+    res.writeHead(200, { 
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache',
+    });
+    res.end(data);
+  });
+}
 
 // Create a single agent instance
 const agent = new AriaAgent({
@@ -315,6 +361,21 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders);
     res.end();
+    return;
+  }
+
+  // Serve IDE UI at root
+  if (req.method === 'GET' && (req.url === '/' || req.url === '/ide' || req.url === '/ide.html')) {
+    serveStatic(req, res, 'ide.html');
+    return;
+  }
+
+  // Serve static files from desktop directory
+  const urlPath = req.url.split('?')[0]; // Strip query string
+  if (req.method === 'GET' && (urlPath.endsWith('.css') || urlPath.endsWith('.js') || 
+      urlPath.endsWith('.ico') || urlPath.endsWith('.svg') || urlPath.endsWith('.png'))) {
+    const filePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
+    serveStatic(req, res, filePath);
     return;
   }
 
@@ -789,8 +850,11 @@ const brailleWS = new BrailleWebSocketServer({ port: BRAILLE_WS_PORT });
 brailleWS.start();
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🤖 Aria server running at http://localhost:${PORT}`);
+  console.log(`🤖 Aria IDE running at http://localhost:${PORT}`);
   console.log(`⠃⠗ Braille WebSocket at ws://localhost:${BRAILLE_WS_PORT}`);
+  console.log(`\n🖥️  UI:`);
+  console.log(`   GET  /               - Aria IDE (full interface)`);
+  console.log(`   GET  /ide            - Aria IDE (alias)`);
   console.log(`\n📁 File System:`);
   console.log(`   GET  /files          - List files in directory`);
   console.log(`   GET  /file           - Read file content`);

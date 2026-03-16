@@ -38,9 +38,11 @@ const mime = {
 };
 
 const server = http.createServer(async (req, res) => {
-  // Check for IDE mode
-  const isIDE = process.env.IDE_MODE === 'true' || req.url.startsWith('/ide');
-  let requestPath = req.url === '/' ? (isIDE ? '/ide.html' : '/index.html') : req.url;
+  // Strip query string from URL
+  let requestPath = req.url.split('?')[0];
+  
+  // Always serve ide.html as the default (full IDE with braille)
+  if (requestPath === '/') requestPath = '/ide.html';
   
   // Redirect /ide to /ide.html
   if (requestPath === '/ide') requestPath = '/ide.html';

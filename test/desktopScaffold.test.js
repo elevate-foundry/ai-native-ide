@@ -7,9 +7,9 @@ function read(path) {
 }
 
 test('desktop UI scaffold files exist', () => {
-  assert.equal(fs.existsSync('desktop/index.html'), true);
-  assert.equal(fs.existsSync('desktop/main.js'), true);
-  assert.equal(fs.existsSync('desktop/styles.css'), true);
+  assert.equal(fs.existsSync('desktop/ide.html'), true);
+  assert.equal(fs.existsSync('desktop/ide.js'), true);
+  assert.equal(fs.existsSync('desktop/ide.css'), true);
 });
 
 test('package scripts include tauri entrypoints', () => {
