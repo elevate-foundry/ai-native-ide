@@ -65,6 +65,26 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// Handle port already in use - kill existing process and retry
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${port} in use, attempting to free it...`);
+    import('child_process').then(({ execSync }) => {
+      try {
+        execSync(`lsof -ti:${port} | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+        setTimeout(() => {
+          server.listen(port, '0.0.0.0');
+        }, 500);
+      } catch {
+        console.error(`Could not free port ${port}`);
+        process.exit(1);
+      }
+    });
+  } else {
+    throw err;
+  }
+});
+
 server.listen(port, '0.0.0.0', () => {
   console.log(`Desktop preview server running at http://0.0.0.0:${port}`);
 });

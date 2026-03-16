@@ -31,7 +31,10 @@ When you need to take an action, use the appropriate tool. Always explain what y
 class AriaAgent {
   constructor(options = {}) {
     this.llm = options.llmClient || createLLMClient(options.llmConfig);
-    this.tools = new AriaTools({ workingDirectory: options.workingDirectory });
+    this.tools = new AriaTools({ 
+      workingDirectory: options.workingDirectory,
+      apiKey: options.apiKey || process.env.OPENROUTER_API_KEY,
+    });
     this.conversationHistory = [];
     this.maxIterations = options.maxIterations || 10;
     this.onChunk = options.onChunk || (() => {});

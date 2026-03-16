@@ -67,7 +67,10 @@ fi
 
 # Install dependencies
 echo -e "${YELLOW}[3/5]${NC} Installing dependencies..."
-npm install --silent 2>/dev/null || npm install
+npm install --silent 2>/dev/null || npm install 2>/dev/null || {
+  echo -e "  ${YELLOW}!${NC} Full install failed, retrying without optional native addons..."
+  npm install --omit=optional
+}
 echo -e "  ${GREEN}✓${NC} Dependencies installed"
 
 # Set up environment
@@ -100,21 +103,23 @@ else
     echo -e "  ${GREEN}✓${NC} .env file exists"
 fi
 
-# Determine ports
+# Determine port and temp directory
 ARIA_PORT=${ARIA_PORT:-3200}
-IDE_PORT=${IDE_PORT:-4173}
+LOG_DIR=${TMPDIR:-/tmp}
 
-# Start servers
+# Start server
 echo -e "${YELLOW}[5/5]${NC} Starting Aria IDE..."
 echo ""
 
-# Kill any existing processes on our ports
-lsof -ti:$ARIA_PORT | xargs kill -9 2>/dev/null || true
-lsof -ti:$IDE_PORT | xargs kill -9 2>/dev/null || true
+# Kill any existing processes on our port (works on Linux, macOS, and Termux)
+fuser -k $ARIA_PORT/tcp 2>/dev/null || 
+  lsof -ti :$ARIA_PORT 2>/dev/null | xargs kill -9 2>/dev/null ||
+  true
+sleep 1
 
-# Start Aria server in background
-echo -e "  Starting Aria server on port ${CYAN}$ARIA_PORT${NC}..."
-node scripts/aria-server.mjs > /tmp/aria-server.log 2>&1 &
+# Start Aria server (serves both API + IDE on one port)
+echo -e "  Starting Aria on port ${CYAN}$ARIA_PORT${NC}..."
+node scripts/aria-server.mjs > "$LOG_DIR/aria-server.log" 2>&1 &
 ARIA_PID=$!
 
 # Wait for server to start
@@ -125,53 +130,37 @@ if kill -0 $ARIA_PID 2>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Aria server running (PID: $ARIA_PID)"
 else
     echo -e "  ${RED}✗${NC} Failed to start Aria server"
-    echo -e "  Check logs: ${CYAN}cat /tmp/aria-server.log${NC}"
+    echo -e "  Check logs: ${CYAN}cat $LOG_DIR/aria-server.log${NC}"
     exit 1
 fi
 
-# Start IDE server in background
-echo -e "  Starting IDE server on port ${CYAN}$IDE_PORT${NC}..."
-IDE_MODE=true node scripts/serve-desktop.mjs > /tmp/aria-ide.log 2>&1 &
-IDE_PID=$!
+# Save PID for later cleanup
+echo "$ARIA_PID" > "$LOG_DIR/aria-server.pid"
 
-sleep 1
-
-if kill -0 $IDE_PID 2>/dev/null; then
-    echo -e "  ${GREEN}✓${NC} IDE server running (PID: $IDE_PID)"
-else
-    echo -e "  ${RED}✗${NC} Failed to start IDE server"
-    exit 1
-fi
-
-# Save PIDs for later cleanup
-echo "$ARIA_PID" > /tmp/aria-server.pid
-echo "$IDE_PID" > /tmp/aria-ide.pid
+# Detect LAN IP for mobile access (skip Docker/virtual bridge IPs)
+LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' || \
+         hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^172\.' | grep -v '^127\.' | head -1 || \
+         ipconfig getifaddr en0 2>/dev/null || echo "localhost")
 
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}  ✓ Aria IDE is ready!${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo -e "  ${CYAN}IDE:${NC}     http://localhost:$IDE_PORT/ide"
-echo -e "  ${CYAN}API:${NC}     http://localhost:$ARIA_PORT"
+echo -e "  ${CYAN}Local:${NC}   http://localhost:$ARIA_PORT"
+echo -e "  ${CYAN}Mobile:${NC}  http://$LAN_IP:$ARIA_PORT"
 echo -e "  ${CYAN}CLI:${NC}     npm run aria"
 echo ""
-echo -e "  ${YELLOW}To stop:${NC}  ./stop.sh  or  kill $ARIA_PID $IDE_PID"
+echo -e "  ${YELLOW}To stop:${NC}  kill $ARIA_PID"
 echo ""
 
-# Open browser (optional)
+# Auto-open browser
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    read -p "  Open IDE in browser? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-        open "http://localhost:$IDE_PORT/ide"
-    fi
+    open "http://localhost:$ARIA_PORT" 2>/dev/null &
 elif command -v xdg-open &> /dev/null; then
-    read -p "  Open IDE in browser? [Y/n] " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-        xdg-open "http://localhost:$IDE_PORT/ide"
-    fi
+    xdg-open "http://localhost:$ARIA_PORT" 2>/dev/null &
+elif command -v termux-open-url &> /dev/null; then
+    termux-open-url "http://localhost:$ARIA_PORT" 2>/dev/null &
 fi
 
 echo -e "${GREEN}Happy coding with Aria! 🚀${NC}"

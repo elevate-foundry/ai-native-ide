@@ -923,54 +923,16 @@ async function checkServerStatus() {
     ariaStatus.innerHTML = `<span style="color: #f87171;">❌ Aria Backend: Offline</span>`;
   }
   
-  // Check model servers
-  if (!modelStatus) return;
-  
-  const results = await Promise.all(
-    MODEL_PORTS.map(async ({ port, name, model }) => {
-      try {
-        const response = await fetch(`http://localhost:${port}/health`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(1000)
-        });
-        if (response.ok) {
-          return { name, port, model, status: 'online' };
-        }
-        return { name, port, model, status: 'error' };
-      } catch {
-        return { name, port, model, status: 'offline' };
-      }
-    })
-  );
-  
-  const online = results.filter(r => r.status === 'online');
-  const offline = results.filter(r => r.status !== 'online');
-  
-  let html = `<div style="margin-bottom: 6px;"><strong>${online.length}/${results.length} models available</strong></div>`;
-  
-  if (online.length > 0) {
-    html += `<div style="color: #4ade80; margin-bottom: 4px;">`;
-    online.forEach(m => {
-      html += `<div style="font-size: 11px;">✅ ${m.name} <span style="color: #666;">:${m.port}</span></div>`;
-    });
-    html += `</div>`;
+  // Model servers not needed - braided_query uses OpenRouter API directly
+  if (modelStatus) {
+    modelStatus.innerHTML = `<div style="color: #4ade80;">✅ Using OpenRouter API</div>`;
   }
-  
-  if (offline.length > 0 && offline.length < results.length) {
-    html += `<details style="margin-top: 4px;"><summary style="cursor: pointer; color: #666; font-size: 11px;">${offline.length} unavailable</summary>`;
-    html += `<div style="color: #f87171; font-size: 10px; margin-top: 4px;">`;
-    offline.forEach(m => {
-      html += `<div>❌ ${m.name}</div>`;
-    });
-    html += `</div></details>`;
-  }
-  
-  modelStatus.innerHTML = html;
 }
 
 // Check status on load and periodically
+// Only check Aria backend, not model servers (they use OpenRouter API directly)
 checkServerStatus();
-setInterval(checkServerStatus, 30000); // Every 30 seconds
+setInterval(checkServerStatus, 60000); // Every 60 seconds
 
 // ============================================================================
 // Runtime Loop

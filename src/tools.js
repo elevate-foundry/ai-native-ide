@@ -10,6 +10,9 @@ const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const { WorldModelTools, WORLD_MODEL_TOOLS } = require('./world-model');
 const { BraidedLLMTools, BRAIDED_LLM_TOOLS } = require('./braided-llm');
+const { IntrospectionTools, INTROSPECTION_TOOLS } = require('./introspection');
+const { SelfImprovementTools, SELF_IMPROVEMENT_TOOLS } = require('./self-improvement');
+const { MemoryStrategyTools, MEMORY_STRATEGY_TOOLS } = require('./memory-strategy');
 
 const execAsync = promisify(exec);
 
@@ -240,6 +243,12 @@ const TOOL_DEFINITIONS = [
   ...WORLD_MODEL_TOOLS,
   // Add Braided LLM tools
   ...BRAIDED_LLM_TOOLS,
+  // Add Introspection tools (meta-cognitive capabilities)
+  ...INTROSPECTION_TOOLS,
+  // Add Self-Improvement tools (recursive self-improvement)
+  ...SELF_IMPROVEMENT_TOOLS,
+  // Add Memory Strategy tools (adaptive memory management)
+  ...MEMORY_STRATEGY_TOOLS,
 ];
 
 // ============================================================================
@@ -253,6 +262,9 @@ class AriaTools {
     this.page = null;    // Current page
     this.worldModel = new WorldModelTools(options.worldModelPath);
     this.braidedLLM = new BraidedLLMTools(options.apiKey || process.env.OPENROUTER_API_KEY);
+    this.introspection = new IntrospectionTools(options);
+    this.selfImprovement = new SelfImprovementTools(options);
+    this.memoryStrategy = new MemoryStrategyTools(options);
   }
 
   async initBrowser() {
@@ -462,6 +474,25 @@ class AriaTools {
     // Check if it's a braided LLM tool
     if (toolName.startsWith('braided_') || toolName === 'text_to_braille' || toolName === 'braille_to_text') {
       return this.braidedLLM.execute(toolName, params);
+    }
+    
+    // Check if it's an introspection tool
+    if (toolName.startsWith('aria_analyze') || toolName.startsWith('aria_log') || 
+        toolName.startsWith('aria_compare') || toolName.startsWith('aria_check') ||
+        toolName === 'aria_get_improvement_suggestions' || toolName === 'aria_introspection_stats') {
+      return this.introspection.execute(toolName, params);
+    }
+    
+    // Check if it's a self-improvement tool
+    if (toolName.startsWith('aria_collect') || toolName.startsWith('aria_generate') ||
+        toolName.startsWith('aria_apply') || toolName === 'aria_improvement_stats') {
+      return this.selfImprovement.execute(toolName, params);
+    }
+    
+    // Check if it's a memory strategy tool
+    if (toolName.startsWith('aria_select_memory') || toolName.startsWith('aria_execute_memory') ||
+        toolName === 'aria_check_resources' || toolName === 'aria_memory_status') {
+      return this.memoryStrategy.execute(toolName, params, this._context);
     }
     
     const method = this[toolName];

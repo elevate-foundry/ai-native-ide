@@ -7,8 +7,8 @@
   "scripts": {
     "test": "node --test",
     "tauri:web": "node scripts/serve-desktop.mjs",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:dev": "npx @tauri-apps/cli dev",
+    "tauri:build": "npx @tauri-apps/cli build",
     "install:local": "bash scripts/install.sh --repo-url \"$(pwd)\" --branch \"$(git rev-parse --abbrev-ref HEAD)\" --prefix \"$HOME/.local\"",
     "monitor:sockets": "node scripts/monitor-sockets.mjs",
     "monitor:sockets:once": "node scripts/monitor-sockets.mjs --once",
@@ -22,6 +22,7 @@
     "start": "./scripts/start-aria.sh"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "canvas": "^3.2.1"
   },
   "dependencies": {
