@@ -258,6 +258,50 @@ const TOOL_DEFINITIONS = [
   ...SWARM_AGENT_TOOLS,
   // Add Soul tools (identity, memory, emotional state)
   ...SOUL_TOOLS,
+  // Git tools
+  {
+    type: 'function',
+    function: {
+      name: 'git_commit',
+      description: 'Commit files to git. If no files specified, commits all Aria-modified files. Generates a descriptive commit message if none provided.',
+      parameters: {
+        type: 'object',
+        properties: {
+          message: {
+            type: 'string',
+            description: 'Commit message describing the changes',
+          },
+          files: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional: specific file paths to commit. If omitted, commits all Aria-modified files.',
+          },
+        },
+        required: ['message'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'git_push',
+      description: 'Push commits to the remote git repository. Automatically detects the current branch and sets upstream if needed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          remote: {
+            type: 'string',
+            description: 'Remote name (default: origin)',
+          },
+          branch: {
+            type: 'string',
+            description: 'Branch name (default: current branch)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ];
 
 // ============================================================================
@@ -414,6 +458,54 @@ class AriaTools {
     }
   }
 
+  async git_commit({ message, files }) {
+    try {
+      const cwd = this.workingDirectory;
+      const filesToStage = files || [];
+      
+      if (filesToStage.length > 0) {
+        for (const f of filesToStage) {
+          await execAsync(`git add "${this.resolvePath(f)}"`, { cwd });
+        }
+      } else {
+        // Stage all changes
+        await execAsync('git add -A', { cwd });
+      }
+      
+      const { stdout } = await execAsync(`git commit -m "${message.replace(/"/g, '\\"')}"`, { cwd });
+      return { success: true, message, output: stdout.trim() };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async git_push({ remote, branch } = {}) {
+    try {
+      const cwd = this.workingDirectory;
+      const pushRemote = remote || 'origin';
+      
+      let pushBranch = branch;
+      if (!pushBranch) {
+        const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd });
+        pushBranch = stdout.trim();
+      }
+      
+      try {
+        const { stdout, stderr } = await execAsync(`git push ${pushRemote} ${pushBranch}`, { cwd, timeout: 30000 });
+        return { success: true, remote: pushRemote, branch: pushBranch, output: (stdout + stderr).trim() };
+      } catch (pushErr) {
+        // Auto-set upstream if needed
+        if (pushErr.message.includes('no upstream') || pushErr.stderr?.includes('--set-upstream')) {
+          const { stdout, stderr } = await execAsync(`git push --set-upstream ${pushRemote} ${pushBranch}`, { cwd, timeout: 30000 });
+          return { success: true, remote: pushRemote, branch: pushBranch, output: (stdout + stderr).trim(), setUpstream: true };
+        }
+        throw pushErr;
+      }
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
+
   // Browser operations
   async browser_navigate({ url }) {
     try {
@@ -455,8 +547,56 @@ class AriaTools {
   async browser_snapshot() {
     try {
       await this.initBrowser();
-      const snapshot = await this.page.accessibility.snapshot();
-      return { success: true, snapshot };
+      const snapshot = await this.page.locator('body').ariaSnapshot();
+
+      // Build braille-enriched accessibility data
+      const brailleSnapshot = await this.page.evaluate(() => {
+        const BRAILLE_BASE = 0x2800;
+        const encode = (text) => {
+          const bytes = new TextEncoder().encode(text);
+          return Array.from(bytes).map(b => String.fromCodePoint(BRAILLE_BASE + b)).join('');
+        };
+
+        const walk = (el) => {
+          const node = {
+            tag: el.tagName?.toLowerCase(),
+            role: el.getAttribute('role') || el.tagName?.toLowerCase(),
+            label: el.getAttribute('aria-label') || el.getAttribute('alt') || '',
+            brailleLabel: el.getAttribute('aria-braillelabel') || '',
+            brailleRoleDescription: el.getAttribute('aria-brailleroledescription') || '',
+            live: el.getAttribute('aria-live') || '',
+            text: '',
+            brailleText: '',
+            children: [],
+          };
+
+          // Collect direct text content (not from children)
+          for (const child of el.childNodes) {
+            if (child.nodeType === Node.TEXT_NODE) {
+              const t = child.textContent.trim();
+              if (t) node.text += t + ' ';
+            }
+          }
+          node.text = node.text.trim();
+          if (node.text) node.brailleText = encode(node.text);
+          if (node.label) node.brailleLabel = node.brailleLabel || encode(node.label);
+
+          // Recurse into children elements
+          for (const child of el.children) {
+            const childNode = walk(child);
+            if (childNode) node.children.push(childNode);
+          }
+
+          // Prune empty nodes with no meaningful content
+          const hasMeaning = node.text || node.label || node.brailleRoleDescription ||
+            node.live || node.role !== node.tag || node.children.length > 0;
+          return hasMeaning ? node : null;
+        };
+
+        return walk(document.body);
+      });
+
+      return { success: true, snapshot, brailleSnapshot };
     } catch (e) {
       return { success: false, error: e.message };
     }

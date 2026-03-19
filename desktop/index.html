@@ -18,9 +18,47 @@
       --text-muted: #8b949e;
       --accent: #58a6ff;
       --braille: #7dd3fc;
+      --focus-ring: #58a6ff;
     }
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* Skip link for keyboard users */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 0;
+      background: var(--accent);
+      color: #000;
+      padding: 8px 16px;
+      z-index: 1000;
+      font-weight: 600;
+      border-radius: 0 0 4px 0;
+    }
+    .skip-link:focus { top: 0; }
+
+    /* Focus indicators for keyboard navigation */
+    :focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+    button:focus-visible, .file-item:focus-visible, .conv-item:focus-visible {
+      outline: 2px solid var(--focus-ring);
+      outline-offset: 1px;
+    }
+
+    /* Visually hidden but available to screen readers */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
     
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -80,6 +118,7 @@
       align-items: center;
       gap: 8px;
     }
+    .file-item[tabindex]:focus-visible { background: rgba(88,166,255,0.15); }
     
     .file-item:hover { background: rgba(255,255,255,0.05); }
     .file-item.dir { color: var(--accent); }
@@ -98,6 +137,18 @@
     .file-item.untracked .status-badge { color: #73c991; }
     .file-item.deleted .status-badge { color: #f85149; }
     
+    /* Aria-modified files */
+    .file-item.aria-modified {
+      color: #d2a8ff;
+      background: rgba(210,168,255,0.08);
+      border-left: 2px solid #d2a8ff;
+      padding-left: 6px;
+    }
+    .file-item.aria-modified .status-badge {
+      color: #d2a8ff;
+      font-style: italic;
+    }
+
     /* Chat */
     .chat {
       flex: 1;
@@ -284,37 +335,243 @@
       color: var(--text-muted);
       border-top: 1px solid var(--border);
     }
+
+    /* High contrast mode support */
+    @media (forced-colors: active) {
+      .msg.user { border: 1px solid ButtonText; }
+      .msg.assistant { border: 1px solid Highlight; }
+      .mode-toggle { border: 1px solid ButtonText; }
+    }
+
+    /* Reduced motion preference */
+    @media (prefers-reduced-motion: reduce) {
+      .conv-drawer { transition: none; }
+      * { scroll-behavior: auto !important; }
+    }
+
+    /* File viewer */
+    .msg.file {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0;
+      max-width: 95%;
+      overflow: hidden;
+    }
+    .file-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--accent);
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+    .file-header .file-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .file-header button {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 8px;
+    }
+    .file-header button:hover { color: var(--text); border-color: var(--text-muted); }
+    .file-content {
+      padding: 12px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow-x: auto;
+      max-height: 400px;
+      overflow-y: auto;
+      color: var(--text);
+    }
+    .file-content .line-num {
+      display: inline-block;
+      width: 3em;
+      text-align: right;
+      margin-right: 12px;
+      color: var(--text-muted);
+      opacity: 0.5;
+      user-select: none;
+    }
+
+    /* Conversation drawer */
+    .conv-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 280px;
+      height: 100%;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+    }
+    .conv-drawer.open { transform: translateX(0); }
+    .conv-drawer-header {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .conv-drawer-header button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .conv-drawer-header button:hover { color: var(--text); }
+    .conv-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .conv-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      font-size: 13px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .conv-item:hover { background: rgba(255,255,255,0.05); }
+    .conv-item.active { background: rgba(88,166,255,0.15); border: 1px solid rgba(88,166,255,0.3); }
+    .conv-item .conv-title {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .conv-item .conv-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .conv-item .conv-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .conv-item:hover .conv-delete { opacity: 1; }
+    .conv-item .conv-delete:hover { color: #f85149; }
+    .conv-new {
+      margin: 8px;
+      padding: 8px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      width: calc(100% - 16px);
+    }
+    .conv-new:hover { opacity: 0.9; }
+    .chat-title {
+      font-size: 13px;
+      color: var(--text-muted);
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .chat-title:hover { color: var(--text); }
+    .header-buttons {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 8px;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--text-muted); }
   </style>
 </head>
 <body>
+  <!-- Skip navigation link -->
+  <a href="#input" class="skip-link">Skip to chat input</a>
+
+  <!-- Screen reader live announcements -->
+  <div id="srAnnounce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
   <!-- File Browser -->
-  <aside class="files">
+  <aside class="files" role="navigation" aria-label="File browser" aria-brailleroledescription="⠋⠊⠇⠑⠀⠃⠗⠕⠺⠎⠑⠗">
     <div class="files-header">
-      <span>Files</span>
-      <div>
-        <button onclick="loadFiles()" title="Refresh">🔄</button>
-        <button onclick="goUp()" title="Go up">⬆️</button>
+      <span id="filesLabel">Files</span>
+      <div role="toolbar" aria-label="File actions">
+        <button onclick="loadFiles()" title="Refresh file list" aria-label="Refresh file list" aria-braillelabel="⠗⠑⠋⠗⠑⠎⠓">🔄</button>
+        <button onclick="goUp()" title="Navigate to parent directory" aria-label="Go up one directory" aria-braillelabel="⠥⠏">⬆️</button>
       </div>
     </div>
-    <div class="path" id="path">~</div>
-    <div class="file-list" id="fileList"></div>
+    <div class="path" id="path" aria-label="Current directory path" aria-braillelabel="⠏⠁⠞⠓" role="status">~</div>
+    <div class="file-list" id="fileList" role="listbox" aria-labelledby="filesLabel" tabindex="0"></div>
   </aside>
 
   <!-- Chat -->
-  <main class="chat">
-    <header class="chat-header">
-      <h1>Aria</h1>
-      <button class="mode-toggle" id="modeToggle" onclick="toggleMode()">⠃⠗/EN</button>
+  <main class="chat" style="position: relative;" role="main" aria-label="Chat with Aria" aria-brailleroledescription="⠁⠗⠊⠁⠀⠉⠓⠁⠞">
+    <header class="chat-header" role="banner">
+      <div style="display:flex;align-items:center;gap:12px">
+        <h1 aria-braillelabel="⠁⠗⠊⠁">Aria</h1>
+        <span class="chat-title" id="chatTitle" onclick="renameCurrentConversation()" title="Click to rename" role="button" tabindex="0" aria-label="Conversation title: New Conversation. Press Enter to rename." onkeydown="if(event.key==='Enter')renameCurrentConversation()">New Conversation</span>
+      </div>
+      <div class="header-buttons" role="toolbar" aria-label="Chat controls">
+        <button class="icon-btn" onclick="newConversation()" title="New chat" aria-label="Start new conversation" aria-braillelabel="⠝⠑⠺">＋</button>
+        <button class="icon-btn" onclick="toggleConvDrawer()" title="Conversations" id="convToggle" aria-label="Toggle conversation history" aria-expanded="false" aria-controls="convDrawer" aria-braillelabel="⠓⠊⠎⠞⠕⠗⠽">💬</button>
+        <button class="mode-toggle" id="modeToggle" onclick="toggleMode()" aria-label="Display mode: braille and English. Press to cycle." aria-braillelabel="⠍⠕⠙⠑" aria-live="polite">⠃⠗/EN</button>
+      </div>
     </header>
     
-    <div class="messages" id="messages"></div>
-    
-    <div class="input-area">
-      <textarea id="input" rows="2" placeholder="Ask Aria..." onkeydown="handleKey(event)"></textarea>
-      <button onclick="send()">Send</button>
+    <div class="messages" id="messages" role="log" aria-label="Conversation messages" aria-brailleroledescription="⠍⠑⠎⠎⠁⠛⠑⠎" aria-live="polite" aria-relevant="additions"></div>
+
+    <!-- Conversation drawer -->
+    <div class="conv-drawer" id="convDrawer" role="dialog" aria-label="Conversation history" aria-brailleroledescription="⠉⠕⠝⠧⠑⠗⠎⠁⠞⠊⠕⠝⠎" aria-hidden="true">
+      <div class="conv-drawer-header">
+        <span id="convDrawerTitle">Conversations</span>
+        <button onclick="toggleConvDrawer()" aria-label="Close conversation drawer" aria-braillelabel="⠉⠇⠕⠎⠑">✕</button>
+      </div>
+      <div class="conv-list" id="convList" role="listbox" aria-labelledby="convDrawerTitle"></div>
+      <button class="conv-new" onclick="newConversation()" aria-label="Create new conversation" aria-braillelabel="⠝⠑⠺⠀⠉⠕⠝⠧⠑⠗⠎⠁⠞⠊⠕⠝">＋ New Conversation</button>
     </div>
     
-    <div class="status" id="status">Ready</div>
+    <div class="input-area" role="form" aria-label="Chat input">
+      <label for="input" class="sr-only">Type your message to Aria</label>
+      <textarea id="input" rows="2" placeholder="Ask Aria..." onkeydown="handleKey(event)" aria-label="Message input. Press Enter to send, Shift+Enter for new line." aria-braillelabel="⠊⠝⠏⠥⠞"></textarea>
+      <button onclick="send()" aria-label="Send message" aria-braillelabel="⠎⠑⠝⠙">Send</button>
+    </div>
+    
+    <div class="status" id="status" role="status" aria-live="polite" aria-braillelabel="⠎⠞⠁⠞⠥⠎">Ready</div>
   </main>
 
   <script>
@@ -323,6 +580,9 @@
     let currentPath = HOME;
     let mode = 'both'; // 'braille' | 'english' | 'both'
     let gitStatus = {}; // path -> status (M, U, D)
+    let ariaModified = new Set(); // files Aria has changed
+    let currentConvId = null;
+    let conversations = [];
 
     // Markdown + LaTeX rendering
     function renderMarkdown(text) {
@@ -382,24 +642,51 @@
           const el = document.createElement('div');
           el.className = 'file-item dir';
           el.textContent = '..';
+          el.setAttribute('role', 'option');
+          el.setAttribute('tabindex', '0');
+          el.setAttribute('aria-label', 'Go to parent directory');
           el.onclick = () => loadFiles(data.parent);
+          el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadFiles(data.parent); } };
           list.appendChild(el);
         }
         
         data.files.forEach(f => {
           const el = document.createElement('div');
           const status = gitStatus[f.path] || gitStatus[f.name];
+          const isAriaModified = ariaModified.has(f.path) || ariaModified.has(f.name);
           let statusClass = '';
           if (status === 'M') statusClass = 'modified';
           else if (status === 'U' || status === '?') statusClass = 'untracked';
           else if (status === 'D') statusClass = 'deleted';
           
-          el.className = 'file-item' + (f.type === 'directory' ? ' dir' : '') + (statusClass ? ' ' + statusClass : '');
+          el.className = 'file-item' + (f.type === 'directory' ? ' dir' : '') + (statusClass ? ' ' + statusClass : '') + (isAriaModified ? ' aria-modified' : '');
+          
+          let badge = '';
+          if (isAriaModified) badge = '<span class="status-badge">Aria</span>';
+          else if (status) badge = `<span class="status-badge">${status}</span>`;
+          
+          el.setAttribute('role', 'option');
+          el.setAttribute('tabindex', '0');
+          const typeLabel = f.type === 'directory' ? 'folder' : 'file';
+          const statusLabel = isAriaModified ? ', modified by Aria' : (statusClass ? `, ${statusClass}` : '');
+          el.setAttribute('aria-label', `${f.name}, ${typeLabel}${statusLabel}`);
           el.innerHTML = `
             <span>${f.type === 'directory' ? '📁' : '📄'} ${f.name}</span>
-            ${status ? `<span class="status-badge">${status}</span>` : ''}
+            ${badge}
           `;
           el.onclick = () => f.type === 'directory' ? loadFiles(f.path) : selectFile(f.path);
+          el.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              f.type === 'directory' ? loadFiles(f.path) : selectFile(f.path);
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              el.nextElementSibling?.focus();
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              el.previousElementSibling?.focus();
+            }
+          };
           list.appendChild(el);
         });
       } catch (e) {
@@ -412,15 +699,73 @@
       loadFiles(parent);
     }
 
-    function selectFile(path) {
-      document.getElementById('input').value += `\n[File: ${path}]`;
-      document.getElementById('input').focus();
+    async function selectFile(filePath) {
+      setStatus(`Loading ${filePath.split('/').pop()}...`);
+      
+      try {
+        const res = await fetch(`${SERVER}/file?path=${encodeURIComponent(filePath)}`);
+        
+        if (!res.ok) throw new Error('Could not read file');
+        
+        const content = await res.text();
+        const fileName = filePath.split('/').pop();
+        const ext = fileName.includes('.') ? fileName.split('.').pop() : '';
+        
+        // Create file viewer message
+        const el = document.createElement('div');
+        el.className = 'msg file';
+        
+        // Add numbered lines
+        const lines = content.split('\n');
+        const numberedLines = lines.map((line, i) => 
+          `<span class="line-num">${i + 1}</span>${escapeHtml(line)}`
+        ).join('\n');
+        
+        el.setAttribute('role', 'article');
+        el.setAttribute('aria-label', `File viewer: ${fileName}, ${lines.length} lines`);
+        el.innerHTML = `
+          <div class="file-header">
+            <span>📄 ${fileName}</span>
+            <div class="file-actions">
+              <button onclick="askAriaAboutFile('${filePath.replace(/'/g, "\\'")}')">Ask Aria</button>
+              <button onclick="this.closest('.msg').remove()" title="Close" aria-label="Close file viewer for ${fileName}">✕</button>
+            </div>
+          </div>
+          <div class="file-content" role="region" aria-label="${fileName} source code" tabindex="0">${numberedLines}</div>
+        `;
+        
+        document.getElementById('messages').appendChild(el);
+        el.scrollIntoView({ behavior: 'smooth' });
+        setStatus(`Viewing ${fileName} (${lines.length} lines)`);
+      } catch (e) {
+        setStatus('Error: ' + e.message);
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function askAriaAboutFile(filePath) {
+      const input = document.getElementById('input');
+      input.value = `Analyze this file: ${filePath}`;
+      input.focus();
+    }
+
+    // Screen reader announcement helper
+    function announce(text) {
+      const el = document.getElementById('srAnnounce');
+      if (el) { el.textContent = ''; requestAnimationFrame(() => { el.textContent = text; }); }
     }
 
     // Chat
     function addMessage(role, content) {
       const el = document.createElement('div');
       el.className = `msg ${role}`;
+      el.setAttribute('role', 'article');
+      el.setAttribute('aria-label', `${role === 'user' ? 'You' : 'Aria'}: ${content.slice(0, 80)}${content.length > 80 ? '...' : ''}`);
       
       if (role === 'assistant') {
         const braille = toBraille(content);
@@ -428,10 +773,11 @@
         const showEnglish = mode === 'english' || mode === 'both';
         
         el.innerHTML = `
-          ${showBraille ? `<div class="braille">${braille}</div>` : ''}
-          ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
+          ${showBraille ? `<div class="braille" aria-label="Braille encoded response" aria-brailleroledescription="⠃⠗⠁⠊⠇⠇⠑">${braille}</div>` : ''}
+          ${showEnglish ? `<div class="english" aria-label="English response">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
         `;
         el.dataset.content = content;
+        announce('Aria responded');
       } else {
         el.textContent = content;
       }
@@ -449,6 +795,14 @@
       input.value = '';
       addMessage('user', text);
       setStatus('Thinking...');
+      
+      // Auto-create conversation if none active
+      if (!currentConvId) {
+        await newConversation(false);
+      }
+      
+      // Save user message
+      saveMessage('user', text);
       
       try {
         const res = await fetch(`${SERVER}/chat`, {
@@ -481,6 +835,9 @@
           }
         }
         
+        // Save assistant response
+        if (content) saveMessage('assistant', content);
+        
         setStatus('Ready');
       } catch (e) {
         addMessage('assistant', 'Error: ' + e.message);
@@ -494,10 +851,11 @@
       const showEnglish = mode === 'english' || mode === 'both';
       
       el.innerHTML = `
-        ${showBraille ? `<div class="braille">${braille}</div>` : ''}
-        ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
+        ${showBraille ? `<div class="braille" aria-label="Braille encoded response" aria-brailleroledescription="⠃⠗⠁⠊⠇⠇⠑">${braille}</div>` : ''}
+        ${showEnglish ? `<div class="english" aria-label="English response">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
       `;
       el.dataset.content = content;
+      el.setAttribute('aria-label', `Aria: ${content.slice(0, 80)}${content.length > 80 ? '...' : ''}`);
       el.scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -507,6 +865,9 @@
       const btn = document.getElementById('modeToggle');
       btn.textContent = mode === 'braille' ? '⠃⠗' : mode === 'english' ? 'EN' : '⠃⠗/EN';
       btn.className = 'mode-toggle ' + (mode === 'both' ? '' : mode);
+      const modeLabels = { braille: 'braille only', english: 'English only', both: 'braille and English' };
+      btn.setAttribute('aria-label', `Display mode: ${modeLabels[mode]}. Press to cycle.`);
+      announce(`Display mode: ${modeLabels[mode]}`);
       
       // Update existing messages
       document.querySelectorAll('.msg.assistant').forEach(el => {
@@ -538,20 +899,214 @@
       }
     }
 
+    // Fetch Aria-modified files
+    async function fetchAriaModified() {
+      try {
+        const res = await fetch(`${SERVER}/aria-modified`);
+        if (res.ok) {
+          const data = await res.json();
+          ariaModified = new Set(data.files || []);
+          // Also add basenames for matching
+          for (const f of data.files || []) {
+            ariaModified.add(f.split('/').pop());
+          }
+        }
+      } catch (e) {}
+    }
+
     // Auto-refresh file list periodically
     let refreshInterval = null;
     function startAutoRefresh() {
       if (refreshInterval) clearInterval(refreshInterval);
       refreshInterval = setInterval(async () => {
         await fetchGitStatus();
+        await fetchAriaModified();
         await loadFiles();
       }, 3000); // Refresh every 3 seconds
+    }
+
+    // ========================================================================
+    // Conversation Management
+    // ========================================================================
+
+    async function saveMessage(role, content) {
+      if (!currentConvId) return;
+      try {
+        const res = await fetch(`${SERVER}/conversations/${currentConvId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role, content })
+        });
+        const data = await res.json();
+        // Update title in header (auto-generated from first message)
+        if (data.title) {
+          document.getElementById('chatTitle').textContent = data.title;
+        }
+        // Refresh conversation list
+        loadConversations();
+      } catch (e) {
+        console.error('Failed to save message:', e);
+      }
+    }
+
+    async function newConversation(clearChat = true) {
+      try {
+        const res = await fetch(`${SERVER}/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json();
+        currentConvId = data.id;
+        document.getElementById('chatTitle').textContent = data.title || 'New Conversation';
+        
+        if (clearChat) {
+          document.getElementById('messages').innerHTML = '';
+          // Clear agent history on server too
+          fetch(`${SERVER}/clear`, { method: 'POST' }).catch(() => {});
+        }
+        
+        await loadConversations();
+        return data;
+      } catch (e) {
+        console.error('Failed to create conversation:', e);
+      }
+    }
+
+    async function loadConversation(id) {
+      try {
+        const res = await fetch(`${SERVER}/conversations/${id}`);
+        const data = await res.json();
+        
+        currentConvId = id;
+        document.getElementById('chatTitle').textContent = data.title || 'Untitled';
+        document.getElementById('messages').innerHTML = '';
+        
+        // Render all messages
+        for (const msg of data.messages) {
+          addMessage(msg.role, msg.content);
+        }
+        
+        // Close drawer
+        document.getElementById('convDrawer').classList.remove('open');
+        
+        // Update active state in list
+        loadConversations();
+        setStatus(`Loaded: ${data.title}`);
+      } catch (e) {
+        setStatus('Error loading conversation');
+      }
+    }
+
+    async function loadConversations() {
+      try {
+        const res = await fetch(`${SERVER}/conversations`);
+        const data = await res.json();
+        conversations = data.conversations || [];
+        
+        const list = document.getElementById('convList');
+        list.innerHTML = '';
+        
+        if (conversations.length === 0) {
+          list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:12px;text-align:center">No conversations yet</div>';
+          return;
+        }
+        
+        for (const conv of conversations) {
+          const el = document.createElement('div');
+          el.className = 'conv-item' + (conv.id === currentConvId ? ' active' : '');
+          el.setAttribute('role', 'option');
+          el.setAttribute('tabindex', '0');
+          el.setAttribute('aria-selected', conv.id === currentConvId ? 'true' : 'false');
+          
+          const timeAgo = formatTimeAgo(conv.updatedAt);
+          el.setAttribute('aria-label', `${conv.title}, ${conv.messageCount} messages, ${timeAgo}${conv.id === currentConvId ? ', current' : ''}`);
+          el.innerHTML = `
+            <div style="flex:1;min-width:0">
+              <div class="conv-title">${escapeHtml(conv.title)}</div>
+              <div class="conv-meta">${conv.messageCount} msgs · ${timeAgo}</div>
+            </div>
+            <button class="conv-delete" onclick="event.stopPropagation(); deleteConversation('${conv.id}')" title="Delete" aria-label="Delete conversation: ${escapeHtml(conv.title)}">🗑</button>
+          `;
+          el.onclick = () => loadConversation(conv.id);
+          el.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadConversation(conv.id); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); el.nextElementSibling?.focus(); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); el.previousElementSibling?.focus(); }
+          };
+          list.appendChild(el);
+        }
+      } catch (e) {
+        console.error('Failed to load conversations:', e);
+      }
+    }
+
+    async function deleteConversation(id) {
+      if (!confirm('Delete this conversation?')) return;
+      try {
+        await fetch(`${SERVER}/conversations/${id}`, { method: 'DELETE' });
+        if (id === currentConvId) {
+          currentConvId = null;
+          document.getElementById('messages').innerHTML = '';
+          document.getElementById('chatTitle').textContent = 'New Conversation';
+        }
+        await loadConversations();
+      } catch (e) {
+        console.error('Failed to delete conversation:', e);
+      }
+    }
+
+    async function renameCurrentConversation() {
+      if (!currentConvId) return;
+      const currentTitle = document.getElementById('chatTitle').textContent;
+      const newTitle = prompt('Rename conversation:', currentTitle);
+      if (!newTitle || newTitle === currentTitle) return;
+      
+      try {
+        await fetch(`${SERVER}/conversations/${currentConvId}/rename`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: newTitle })
+        });
+        document.getElementById('chatTitle').textContent = newTitle;
+        await loadConversations();
+      } catch (e) {
+        console.error('Failed to rename conversation:', e);
+      }
+    }
+
+    function toggleConvDrawer() {
+      const drawer = document.getElementById('convDrawer');
+      const isOpen = drawer.classList.toggle('open');
+      drawer.setAttribute('aria-hidden', !isOpen);
+      document.getElementById('convToggle').setAttribute('aria-expanded', isOpen);
+      if (isOpen) {
+        loadConversations();
+        // Focus first item or new-conversation button
+        requestAnimationFrame(() => {
+          const first = drawer.querySelector('.conv-item, .conv-new');
+          if (first) first.focus();
+        });
+      }
+    }
+
+    function formatTimeAgo(timestamp) {
+      const seconds = Math.floor((Date.now() - timestamp) / 1000);
+      if (seconds < 60) return 'just now';
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
     }
 
     // Init
     async function init() {
       await fetchGitStatus();
+      await fetchAriaModified();
       await loadFiles(HOME);
+      await loadConversations();
       startAutoRefresh();
     }
     init();
