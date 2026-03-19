@@ -14,6 +14,8 @@ const { IntrospectionTools, INTROSPECTION_TOOLS } = require('./introspection');
 const { SelfImprovementTools, SELF_IMPROVEMENT_TOOLS } = require('./self-improvement');
 const { MemoryStrategyTools, MEMORY_STRATEGY_TOOLS } = require('./memory-strategy');
 const { VersionControlTools, VERSION_CONTROL_TOOLS } = require('./version-control');
+const { SwarmAgentTools, SWARM_AGENT_TOOLS } = require('./swarm-agent');
+const { SoulTools, SOUL_TOOLS } = require('./soul');
 
 const execAsync = promisify(exec);
 
@@ -252,6 +254,10 @@ const TOOL_DEFINITIONS = [
   ...MEMORY_STRATEGY_TOOLS,
   // Add Version Control tools (git-like VCS)
   ...VERSION_CONTROL_TOOLS,
+  // Add Swarm Agent tools (multi-model consensus building)
+  ...SWARM_AGENT_TOOLS,
+  // Add Soul tools (identity, memory, emotional state)
+  ...SOUL_TOOLS,
 ];
 
 // ============================================================================
@@ -504,6 +510,22 @@ class AriaTools {
         this.versionControl = new VersionControlTools(this.workdir);
       }
       return this.versionControl.execute(toolName, params);
+    }
+    
+    // Check if it's a swarm agent tool
+    if (toolName === 'swarm_build') {
+      if (!this.swarmAgent) {
+        this.swarmAgent = new SwarmAgentTools(this.workdir);
+      }
+      return this.swarmAgent.execute(toolName, params);
+    }
+    
+    // Check if it's a soul tool
+    if (toolName.startsWith('soul_')) {
+      if (!this.soulTools) {
+        this.soulTools = new SoulTools();
+      }
+      return this.soulTools.execute(toolName, params);
     }
     
     const method = this[toolName];

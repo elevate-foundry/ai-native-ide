@@ -27,5 +27,16 @@ src-tauri/Cargo.lock
 hello_world.py
 main.go
 
+# Rust/API build artifacts
+rust_api/target/
+api/target/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+*/venv/
+.venv/
+
 # Aria history
 .aria/

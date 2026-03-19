@@ -63,8 +63,50 @@
         "braille-swarm.js": "Massive multi-model swarm via OpenRouter (all available models)",
         "braille-websocket.js": "Real-time WebSocket braille streaming between UI, agent, and LLMs",
         "braille-harness.js": "UEB Grade-2 contractions for semantic compression",
-        "braided-llm.js": "Multi-model response braiding with braille fingerprinting"
+        "braided-llm.js": "Multi-model response braiding with braille AND LaTeX encoding"
       }
+    },
+    "soul": {
+      "description": "Aria's persistent identity, memory, and emotional state",
+      "entrypoint": "src/soul.js",
+      "storage": "data/soul/ directory",
+      "inspired_by": "OpenClaw's memory system",
+      "components": {
+        "identity": {
+          "file": "identity.json",
+          "contains": ["name", "personality traits", "values", "communication style", "relationships"]
+        },
+        "memory": {
+          "file": "memories.json",
+          "types": ["episodic", "semantic", "procedural", "emotional"],
+          "features": ["temporal decay", "reinforcement on access", "keyword search"]
+        },
+        "emotional_state": {
+          "file": "emotional_state.json",
+          "dimensions": ["engagement", "satisfaction", "curiosity", "confidence", "empathy"]
+        }
+      },
+      "tools": ["soul_remember", "soul_recall", "soul_introspect", "soul_update_emotion"]
+    },
+    "latex_encoding": {
+      "description": "LaTeX as Aria's native mathematical language for AI-to-AI communication",
+      "entrypoint": "src/braided-llm.js",
+      "functions": ["textToLatex", "latexToText"],
+      "purpose": [
+        "Semantic compression of verbose explanations into equations",
+        "Precise expression of logical relationships",
+        "Confidence levels via probability notation P(X)",
+        "Structured reasoning via \\therefore and \\because",
+        "Code blocks via \\begin{verbatim}...\\end{verbatim}"
+      ],
+      "primitives": {
+        "logic": ["\\land", "\\lor", "\\neg", "\\Rightarrow", "\\Leftrightarrow"],
+        "quantifiers": ["\\forall", "\\exists"],
+        "relations": ["=", "\\neq", "\\approx", "<", ">", "\\leq", "\\geq"],
+        "sets": ["\\in", "\\subset", "\\cup", "\\cap", "\\emptyset"],
+        "probability": ["P(X)", "\\mid", "\\mathbb{E}"]
+      },
+      "system_prompt": "LATEX_SYSTEM_PROMPT instructs models to respond natively in LaTeX"
     },
     "intelligence": {
       "description": "LLM integration, context management, and knowledge persistence",
@@ -89,6 +131,24 @@
         "Stash and stash pop"
       ],
       "tools": ["vcs_init", "vcs_status", "vcs_stage", "vcs_commit", "vcs_log", "vcs_diff", "vcs_branch", "vcs_checkout", "vcs_rollback", "vcs_stash", "vcs_stash_pop"]
+    },
+    "swarm_agent": {
+      "description": "Multi-model agentic swarm — GPT-4o, Sonnet, Opus, Llama working together",
+      "entrypoint": "src/swarm-agent.js",
+      "how_it_works": [
+        "Query all models in parallel with the same task",
+        "Each model proposes tool calls or text responses",
+        "Consensus mechanism determines which action to take",
+        "Execute tool calls via the same tools Aria uses",
+        "Iterate until task is complete or max iterations reached"
+      ],
+      "consensus": {
+        "threshold": "50% agreement required for action",
+        "tool_merging": "For code content, prefer longest/most complete",
+        "completion_detection": "Models indicate when task is done"
+      },
+      "tools": ["swarm_build"],
+      "default_models": ["anthropic/claude-sonnet-4", "openai/gpt-4o", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3.1-70b-instruct"]
     },
     "core": {
       "description": "Runtime loop engine — plan/execute/observe/evaluate cycle",

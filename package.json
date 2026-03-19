@@ -19,7 +19,8 @@
     "aria": "node scripts/aria-cli.mjs",
     "aria:server": "node scripts/aria-server.mjs",
     "ide": "IDE_MODE=true node scripts/serve-desktop.mjs",
-    "start": "./scripts/start-aria.sh"
+    "start": "./scripts/start-aria.sh",
+    "dev": "node scripts/aria-server.mjs & npx @tauri-apps/cli dev"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

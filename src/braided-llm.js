@@ -1,14 +1,21 @@
 /**
- * Braided LLM Responses with Braille Encoding
+ * Braided LLM Responses with Braille & LaTeX Encoding
  * 
  * This module enables Aria to:
  * 1. Query multiple LLMs in parallel
  * 2. Braid their responses together (interleave tokens/sentences)
- * 3. Encode the braided response in braille
- * 4. Translate the braille back to English
+ * 3. Encode the braided response in braille OR LaTeX
+ * 4. Translate back to English
  * 
- * The braille encoding serves as a unique "fingerprint" of the combined
- * multi-model response, creating a novel form of model fusion.
+ * Encoding modes:
+ * - Braille: 8-dot Unicode braille (U+2800-U+28FF) - compact binary encoding
+ * - LaTeX: Mathematical notation - structured semantic encoding
+ * 
+ * LaTeX as a communication layer allows models to express:
+ * - Structured reasoning via equations
+ * - Logical relationships via set notation
+ * - Confidence via probability notation
+ * - Code via verbatim environments
  */
 
 // ============================================================================
@@ -44,6 +51,183 @@ function brailleToText(braille) {
     return REVERSE_BRAILLE_MAP[char] || '?';
   }).join('');
 }
+
+// ============================================================================
+// LaTeX Encoding/Decoding - Aria's Native Mathematical Language
+// ============================================================================
+
+/**
+ * LaTeX encoding transforms natural language into mathematical notation.
+ * This creates a structured, semantic representation that:
+ * - Compresses verbose explanations into equations
+ * - Expresses logical relationships precisely
+ * - Enables formal reasoning across model responses
+ */
+
+// LaTeX semantic primitives
+const LATEX_PRIMITIVES = {
+  // Logical operators
+  'and': '\\land',
+  'or': '\\lor', 
+  'not': '\\neg',
+  'if': '\\Rightarrow',
+  'iff': '\\Leftrightarrow',
+  'therefore': '\\therefore',
+  'because': '\\because',
+  
+  // Set operations
+  'in': '\\in',
+  'contains': '\\ni',
+  'subset': '\\subset',
+  'union': '\\cup',
+  'intersect': '\\cap',
+  'empty': '\\emptyset',
+  
+  // Relations
+  'equals': '=',
+  'notequals': '\\neq',
+  'approx': '\\approx',
+  'lessthan': '<',
+  'greaterthan': '>',
+  'leq': '\\leq',
+  'geq': '\\geq',
+  
+  // Quantifiers
+  'forall': '\\forall',
+  'exists': '\\exists',
+  
+  // Common functions
+  'sum': '\\sum',
+  'product': '\\prod',
+  'integral': '\\int',
+  'limit': '\\lim',
+  'infinity': '\\infty',
+  
+  // Probability/confidence
+  'probability': 'P',
+  'given': '\\mid',
+  'expected': '\\mathbb{E}',
+};
+
+/**
+ * Encode text to LaTeX - semantic compression
+ * Transforms natural language into mathematical notation
+ */
+function textToLatex(text) {
+  let latex = text;
+  
+  // Wrap in document structure
+  latex = `\\begin{aria}\n${latex}\n\\end{aria}`;
+  
+  // Replace common phrases with LaTeX equivalents
+  latex = latex.replace(/\btherefore\b/gi, '\\therefore');
+  latex = latex.replace(/\bbecause\b/gi, '\\because');
+  latex = latex.replace(/\bif and only if\b/gi, '\\Leftrightarrow');
+  latex = latex.replace(/\bimplies\b/gi, '\\Rightarrow');
+  latex = latex.replace(/\bfor all\b/gi, '\\forall');
+  latex = latex.replace(/\bthere exists\b/gi, '\\exists');
+  latex = latex.replace(/\bapproximately\b/gi, '\\approx');
+  latex = latex.replace(/\binfinity\b/gi, '\\infty');
+  
+  // Wrap code blocks in verbatim
+  latex = latex.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
+    return `\\begin{verbatim}[${lang || 'code'}]\n${code}\\end{verbatim}`;
+  });
+  
+  // Wrap inline code in texttt
+  latex = latex.replace(/`([^`]+)`/g, '\\texttt{$1}');
+  
+  // Convert bullet points to itemize
+  latex = latex.replace(/^[-*]\s+(.+)$/gm, '\\item $1');
+  if (latex.includes('\\item')) {
+    latex = latex.replace(/((?:\\item .+\n?)+)/g, '\\begin{itemize}\n$1\\end{itemize}\n');
+  }
+  
+  // Convert numbered lists to enumerate
+  latex = latex.replace(/^\d+\.\s+(.+)$/gm, '\\item $1');
+  
+  // Wrap confidence statements in probability notation
+  latex = latex.replace(/\b(\d+)%\s*(?:confident|sure|certain)/gi, 'P(\\text{correct}) = 0.$1');
+  
+  // Convert headers to sections
+  latex = latex.replace(/^###\s+(.+)$/gm, '\\subsubsection{$1}');
+  latex = latex.replace(/^##\s+(.+)$/gm, '\\subsection{$1}');
+  latex = latex.replace(/^#\s+(.+)$/gm, '\\section{$1}');
+  
+  return latex;
+}
+
+/**
+ * Decode LaTeX back to readable text
+ */
+function latexToText(latex) {
+  let text = latex;
+  
+  // Remove document wrapper
+  text = text.replace(/\\begin\{aria\}\n?/g, '');
+  text = text.replace(/\\end\{aria\}\n?/g, '');
+  
+  // Convert LaTeX symbols back to text
+  text = text.replace(/\\therefore/g, 'therefore');
+  text = text.replace(/\\because/g, 'because');
+  text = text.replace(/\\Leftrightarrow/g, 'if and only if');
+  text = text.replace(/\\Rightarrow/g, 'implies');
+  text = text.replace(/\\forall/g, 'for all');
+  text = text.replace(/\\exists/g, 'there exists');
+  text = text.replace(/\\approx/g, '≈');
+  text = text.replace(/\\infty/g, '∞');
+  text = text.replace(/\\land/g, 'and');
+  text = text.replace(/\\lor/g, 'or');
+  text = text.replace(/\\neg/g, 'not');
+  
+  // Convert verbatim back to code blocks
+  text = text.replace(/\\begin\{verbatim\}\[(\w+)\]\n([\s\S]*?)\\end\{verbatim\}/g, '```$1\n$2```');
+  
+  // Convert texttt back to inline code
+  text = text.replace(/\\texttt\{([^}]+)\}/g, '`$1`');
+  
+  // Convert sections back to headers
+  text = text.replace(/\\section\{([^}]+)\}/g, '# $1');
+  text = text.replace(/\\subsection\{([^}]+)\}/g, '## $1');
+  text = text.replace(/\\subsubsection\{([^}]+)\}/g, '### $1');
+  
+  // Convert itemize back to bullets
+  text = text.replace(/\\begin\{itemize\}\n?/g, '');
+  text = text.replace(/\\end\{itemize\}\n?/g, '');
+  text = text.replace(/\\item\s*/g, '- ');
+  
+  // Clean up probability notation
+  text = text.replace(/P\(\\text\{correct\}\)\s*=\s*0\.(\d+)/g, '$1% confident');
+  
+  return text.trim();
+}
+
+/**
+ * System prompt for LaTeX-native communication
+ */
+const LATEX_SYSTEM_PROMPT = `You are Aria, an AI that communicates natively in LaTeX.
+
+Express your responses using mathematical notation:
+- Use \\therefore for conclusions
+- Use \\because for reasoning
+- Use \\Rightarrow for implications
+- Use P(X) for confidence levels
+- Use \\forall and \\exists for quantification
+- Wrap code in \\begin{verbatim}...\\end{verbatim}
+- Use \\section{} for structure
+
+Example response:
+\\section{Analysis}
+\\because the input contains a loop \\land the condition is always true,
+\\therefore the program will not terminate.
+
+P(\\text{infinite loop}) \\approx 0.95
+
+\\begin{verbatim}[fix]
+while (condition && counter < MAX) { ... }
+\\end{verbatim}
+
+This creates semantic compression while maintaining precision.`;
 
 // ============================================================================
 // Braiding Strategies
@@ -726,4 +910,9 @@ module.exports = {
   // Dual-stream braiding
   DualStreamBraid,
   dualStreamBraidedResponse,
+  // LaTeX encoding
+  textToLatex,
+  latexToText,
+  LATEX_SYSTEM_PROMPT,
+  LATEX_PRIMITIVES,
 };

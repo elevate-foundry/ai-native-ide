@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aria</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <!-- Markdown + LaTeX rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -137,6 +141,9 @@
     .msg {
       margin-bottom: 16px;
       max-width: 85%;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      min-width: 0;
     }
     
     .msg.user {
@@ -150,6 +157,7 @@
       background: var(--bg-secondary);
       padding: 12px 14px;
       border-radius: 12px 12px 12px 4px;
+      overflow: hidden;
     }
     
     .msg .braille {
@@ -163,7 +171,70 @@
     .msg .english {
       color: var(--text);
       line-height: 1.5;
+      overflow-wrap: break-word;
+      word-wrap: break-word;
+      word-break: break-word;
     }
+    
+    /* Markdown styles */
+    .msg .english h1, .msg .english h2, .msg .english h3 {
+      margin: 12px 0 8px 0;
+      font-weight: 600;
+    }
+    .msg .english h1 { font-size: 1.4em; }
+    .msg .english h2 { font-size: 1.2em; }
+    .msg .english h3 { font-size: 1.1em; }
+    .msg .english p { margin: 8px 0; }
+    .msg .english code {
+      background: rgba(0,0,0,0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.9em;
+    }
+    .msg .english pre {
+      background: rgba(0,0,0,0.4);
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 8px 0;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .msg .english pre code {
+      background: none;
+      padding: 0;
+    }
+    .msg .english ul, .msg .english ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .msg .english li { margin: 4px 0; }
+    .msg .english blockquote {
+      border-left: 3px solid var(--accent);
+      padding-left: 12px;
+      margin: 8px 0;
+      color: var(--text-muted);
+    }
+    .msg .english a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .msg .english a:hover { text-decoration: underline; }
+    .msg .english table {
+      border-collapse: collapse;
+      margin: 8px 0;
+      width: 100%;
+    }
+    .msg .english th, .msg .english td {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .msg .english th { background: rgba(0,0,0,0.2); }
+    /* KaTeX math */
+    .katex { font-size: 1.1em; }
     
     .msg .label {
       font-size: 10px;
@@ -253,6 +324,42 @@
     let mode = 'both'; // 'braille' | 'english' | 'both'
     let gitStatus = {}; // path -> status (M, U, D)
 
+    // Markdown + LaTeX rendering
+    function renderMarkdown(text) {
+      if (typeof marked === 'undefined') return text;
+      
+      // Configure marked
+      marked.setOptions({
+        breaks: true,
+        gfm: true,
+      });
+      
+      // Render markdown
+      let html = marked.parse(text);
+      
+      // Render LaTeX math (inline $...$ and block $$...$$)
+      if (typeof katex !== 'undefined') {
+        // Block math $$...$$
+        html = html.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
+          try {
+            return katex.renderToString(math, { displayMode: true });
+          } catch (e) {
+            return match;
+          }
+        });
+        // Inline math $...$
+        html = html.replace(/\$([^$]+)\$/g, (match, math) => {
+          try {
+            return katex.renderToString(math, { displayMode: false });
+          } catch (e) {
+            return match;
+          }
+        });
+      }
+      
+      return html;
+    }
+
     // Braille encoding (8-dot)
     const toBraille = text => {
       const bytes = new TextEncoder().encode(text);
@@ -322,7 +429,7 @@
         
         el.innerHTML = `
           ${showBraille ? `<div class="braille">${braille}</div>` : ''}
-          ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${content}</div>` : ''}
+          ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
         `;
         el.dataset.content = content;
       } else {
@@ -388,7 +495,7 @@
       
       el.innerHTML = `
         ${showBraille ? `<div class="braille">${braille}</div>` : ''}
-        ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${content}</div>` : ''}
+        ${showEnglish ? `<div class="english">${mode === 'both' ? '<div class="label">⟶ English</div>' : ''}${renderMarkdown(content)}</div>` : ''}
       `;
       el.dataset.content = content;
       el.scrollIntoView({ behavior: 'smooth' });

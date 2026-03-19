@@ -32,6 +32,16 @@ const ARIA_SYSTEM_PROMPT = `You are Aria (AI Runtime Interactive Agent), a runti
 - Use code blocks for any code suggestions
 - Reference specific sensor data when explaining observations
 
+## Formatting (Markdown + LaTeX supported)
+Your responses are rendered with full Markdown and KaTeX support. Use:
+- **Bold** and *italic* for emphasis
+- \`inline code\` and fenced code blocks with syntax highlighting
+- Headers (##, ###) to structure longer responses
+- Lists and tables when presenting multiple items
+- LaTeX math: $inline$ or $$block$$ for equations
+- HTML colors: <span style="color: #ff6b6b">red</span>, <span style="color: #4ecdc4">teal</span>, <span style="color: #ffe66d">yellow</span>
+- Emojis freely! Use them to add personality and visual interest 🎨✨🚀💡🔧✓✗⚠️🎯🌟
+
 ## Response Format
 When analyzing runtime state, structure your response as:
 1. **Observation**: What the sensors show
@@ -40,8 +50,8 @@ When analyzing runtime state, structure your response as:
 
 You are running inside a Tauri desktop application with access to the user's local development environment.`;
 
+// Note: provider is checked dynamically in createLLMClient to allow dotenv to load first
 const DEFAULT_CONFIG = {
-  provider: process.env.ARIA_PROVIDER || 'auto',
   model: 'anthropic/claude-3.5-sonnet',
   baseUrl: 'https://openrouter.ai/api/v1',
   maxTokens: 4096,
@@ -52,14 +62,14 @@ const DEFAULT_CONFIG = {
 const LOCAL_PROVIDERS = {
   ollama: {
     host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    defaultModel: 'qwen2.5-coder:32b',
+    defaultModel: 'qwen3.5:latest',
     models: [
-      'qwen2.5-coder:32b',
-      'qwen2.5:72b',
-      'llama3.1:70b',
-      'mixtral:8x22b',
-      'codestral:latest',
-      'deepseek-coder-v2:latest',
+      'qwen3.5:latest',
+      'llama3.3:70b',
+      'qwen2.5-coder:latest',
+      'phi4:latest',
+      'mixtral:latest',
+      'deepseek-r1:latest',
     ],
   },
   vllm: {
@@ -261,10 +271,13 @@ function createLLMClient(config = {}) {
     async getProvider() {
       if (resolvedProvider) return resolvedProvider;
       
-      if (finalConfig.provider === 'auto') {
+      // Check env var dynamically (after dotenv has loaded)
+      const configuredProvider = process.env.ARIA_PROVIDER || finalConfig.provider || 'auto';
+      
+      if (configuredProvider === 'auto') {
         resolvedProvider = await detectProvider();
       } else {
-        resolvedProvider = { provider: finalConfig.provider, available: true };
+        resolvedProvider = { provider: configuredProvider, available: true };
       }
       return resolvedProvider;
     },
@@ -300,16 +313,69 @@ function createLLMClient(config = {}) {
      * @yields {string} Content chunks
      */
     async *chatStream(messages, options = {}) {
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error('OPENROUTER_API_KEY environment variable is not set.');
-      }
+      const { provider } = await this.getProvider();
       
       const systemMessage = {
         role: 'system',
         content: options.systemPrompt || ARIA_SYSTEM_PROMPT,
       };
+      const allMessages = [systemMessage, ...messages];
+      
+      // Use Ollama streaming
+      if (provider === 'ollama') {
+        const config = LOCAL_PROVIDERS.ollama;
+        const model = options.model || config.defaultModel;
+        
+        const response = await fetch(`${config.host}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            messages: allMessages,
+            stream: true,
+          }),
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Ollama API error: ${response.status} - ${error}`);
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const json = JSON.parse(line);
+              const content = json.message?.content;
+              if (content) {
+                if (options.onChunk) options.onChunk(content);
+                yield content;
+              }
+            } catch (e) {
+              // Skip malformed chunks
+            }
+          }
+        }
+        return;
+      }
+      
+      // OpenRouter streaming (default)
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error('OPENROUTER_API_KEY environment variable is not set.');
+      }
       
       const response = await fetch(`${finalConfig.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -321,7 +387,7 @@ function createLLMClient(config = {}) {
         },
         body: JSON.stringify({
           model: options.model || finalConfig.model,
-          messages: [systemMessage, ...messages],
+          messages: allMessages,
           max_tokens: options.maxTokens || finalConfig.maxTokens,
           temperature: options.temperature ?? finalConfig.temperature,
           stream: true,
@@ -330,7 +396,7 @@ function createLLMClient(config = {}) {
       
       if (!response.ok) {
         const error = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${error}`);
+        throw new Error(`API error: ${response.status} - ${error}`);
       }
       
       const reader = response.body.getReader();
