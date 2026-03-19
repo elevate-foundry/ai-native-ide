@@ -14,13 +14,101 @@ import { createRequire } from 'module';
 import { config } from 'dotenv';
 import os from 'os';
 
+import crypto from 'crypto';
+
 config();
 
 const execAsync = promisify(exec);
+
+const PORT = process.env.ARIA_PORT || 3200;
+const WS_PORT = process.env.BRAILLE_WS_PORT || 3201;
+
+// ============================================================================
+// Security: Auth Token
+// ============================================================================
+
+const AUTH_TOKEN = process.env.ARIA_AUTH_TOKEN || crypto.randomBytes(32).toString('hex');
+const AUTH_ENABLED = process.env.ARIA_AUTH !== 'disabled';
+
+function checkAuth(req, res) {
+  if (!AUTH_ENABLED) return true;
+  const header = req.headers['authorization'] || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (token === AUTH_TOKEN) return true;
+  res.writeHead(401, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Unauthorized. Set Authorization: Bearer <token> header.' }));
+  return false;
+}
+
+// ============================================================================
+// Security: Path Traversal Protection
+// ============================================================================
+
+function safePath(requestedPath, allowedRoot) {
+  const resolved = path.resolve(requestedPath);
+  if (!resolved.startsWith(allowedRoot)) {
+    return null;
+  }
+  return resolved;
+}
+
+function safeProjectPath(requestedPath) {
+  return safePath(requestedPath, PROJECT_ROOT);
+}
+
+function safeBrowsePath(requestedPath) {
+  return safePath(requestedPath, HOME_DIR);
+}
+
+// ============================================================================
+// Security: Exec Sandboxing
+// ============================================================================
+
+const ALLOWED_EXEC_PREFIXES = [
+  'ls', 'cat', 'head', 'tail', 'wc', 'grep', 'rg', 'find', 'fd',
+  'git status', 'git log', 'git diff', 'git branch', 'git show', 'git rev-parse',
+  'git add', 'git commit', 'git push', 'git pull', 'git fetch', 'git stash',
+  'git checkout', 'git merge', 'git rebase', 'git remote', 'git tag',
+  'node', 'npm', 'npx', 'python', 'python3', 'pip', 'pip3',
+  'cargo', 'rustc', 'go', 'make', 'cmake',
+  'echo', 'which', 'env', 'pwd', 'date', 'whoami', 'uname',
+  'sort', 'uniq', 'cut', 'awk', 'sed', 'tr', 'diff',
+  'curl', 'wget',
+  'mkdir', 'touch', 'cp', 'mv',
+  'lsof', 'ps',
+];
+
+const BLOCKED_SHELL_PATTERNS = [
+  /;/,       // command chaining
+  /\|\|/,   // OR chaining
+  /&&/,      // AND chaining
+  /`/,       // backtick subshell
+  /\$\(/,   // subshell
+  />{1,2}/, // output redirection
+  /<\(/,    // process substitution
+];
+
+function isExecAllowed(command) {
+  if (!command || typeof command !== 'string') return false;
+  const trimmed = command.trim();
+
+  // Check against blocked shell metacharacters
+  for (const pattern of BLOCKED_SHELL_PATTERNS) {
+    if (pattern.test(trimmed)) return false;
+  }
+
+  // Check command starts with an allowed prefix
+  const lower = trimmed.toLowerCase();
+  return ALLOWED_EXEC_PREFIXES.some(prefix =>
+    lower === prefix || lower.startsWith(prefix + ' ')
+  );
+}
+
 const require = createRequire(import.meta.url);
 const { AriaAgent } = require('../src/agent.js');
 const { fileHistory } = require('../src/file-history.js');
 const { BrailleWebSocketServer, toBraille, fromBraille } = require('../src/braille-websocket.js');
+const { ConversationStore } = require('../src/conversation-store.js');
 
 const PROJECT_ROOT = process.cwd();
 const HOME_DIR = os.homedir();
@@ -49,7 +137,6 @@ const CODE_EXTENSIONS = new Set([
   '.dockerfile', '.containerfile', '.tf', '.hcl',
 ]);
 
-const PORT = process.env.ARIA_PORT || 3200;
 const DESKTOP_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'desktop');
 
 // MIME types for static files
@@ -89,11 +176,21 @@ function serveStatic(req, res, filePath) {
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     
+    // Inject auth token into HTML pages so the frontend can authenticate
+    let output = data;
+    if (ext === '.html' && AUTH_ENABLED) {
+      const html = data.toString('utf-8');
+      output = html.replace(
+        '<script>',
+        `<script>window.__ARIA_AUTH_TOKEN__='${AUTH_TOKEN}';`
+      );
+    }
+    
     res.writeHead(200, { 
       'Content-Type': contentType,
       'Cache-Control': 'no-cache',
     });
-    res.end(data);
+    res.end(output);
   });
 }
 
@@ -102,12 +199,33 @@ const agent = new AriaAgent({
   workingDirectory: process.cwd(),
 });
 
+// Track files Aria has modified (for UI highlighting)
+const ariaModifiedFiles = new Set();
+
+// Conversation persistence
+const conversationStore = new ConversationStore();
+conversationStore.initialize().then(() => {
+  console.log(`💬 Conversation store loaded (${conversationStore.conversations.size} conversations)`);
+}).catch(e => {
+  console.error('Failed to init conversation store:', e);
+});
+
 // CORS headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+const ALLOWED_ORIGINS = (process.env.ARIA_CORS_ORIGINS || 'http://localhost:4173,http://localhost:3200,http://127.0.0.1:4173,http://127.0.0.1:3200').split(',');
+
+function getCorsHeaders(req) {
+  const origin = req.headers['origin'] || '';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  };
+}
+
+// Backward-compatible: endpoints that used `corsHeaders` now call getCorsHeaders(req)
 
 // ============================================================================
 // File System Utilities
@@ -357,6 +475,8 @@ function getWorkspaceSummary(rootDir) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const corsHeaders = getCorsHeaders(req);
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders);
@@ -379,12 +499,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Health check
+  // Health check (no auth required)
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', agent: 'aria' }));
     return;
   }
+
+  // --- All endpoints below require authentication ---
+  if (!checkAuth(req, res)) return;
 
   // Get context stats
   if (req.method === 'GET' && req.url === '/stats') {
@@ -472,7 +595,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url.startsWith('/search/files')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const query = url.searchParams.get('q') || '';
-    const rootDir = url.searchParams.get('root') || PROJECT_ROOT;
+    const rootDir = safeProjectPath(url.searchParams.get('root') || PROJECT_ROOT);
+    if (!rootDir) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     const maxResults = parseInt(url.searchParams.get('limit')) || 100;
     
     try {
@@ -490,7 +614,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url.startsWith('/search/content')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     const query = url.searchParams.get('q') || '';
-    const rootDir = url.searchParams.get('root') || PROJECT_ROOT;
+    const rootDir = safeProjectPath(url.searchParams.get('root') || PROJECT_ROOT);
+    if (!rootDir) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     const maxResults = parseInt(url.searchParams.get('limit')) || 50;
     const filePattern = url.searchParams.get('pattern') || null;
     
@@ -508,7 +633,8 @@ const server = http.createServer(async (req, res) => {
   // Get recent files
   if (req.method === 'GET' && req.url.startsWith('/recent')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    const rootDir = url.searchParams.get('root') || PROJECT_ROOT;
+    const rootDir = safeProjectPath(url.searchParams.get('root') || PROJECT_ROOT);
+    if (!rootDir) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     const limit = parseInt(url.searchParams.get('limit')) || 20;
     
     try {
@@ -525,7 +651,8 @@ const server = http.createServer(async (req, res) => {
   // Get workspace summary
   if (req.method === 'GET' && req.url.startsWith('/workspace')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    const rootDir = url.searchParams.get('root') || PROJECT_ROOT;
+    const rootDir = safeProjectPath(url.searchParams.get('root') || PROJECT_ROOT);
+    if (!rootDir) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     
     try {
       const summary = getWorkspaceSummary(rootDir);
@@ -541,7 +668,8 @@ const server = http.createServer(async (req, res) => {
   // Walk entire directory tree
   if (req.method === 'GET' && req.url.startsWith('/tree')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    const rootDir = url.searchParams.get('root') || PROJECT_ROOT;
+    const rootDir = safeProjectPath(url.searchParams.get('root') || PROJECT_ROOT);
+    if (!rootDir) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     const maxDepth = parseInt(url.searchParams.get('depth')) || 5;
     const maxFiles = parseInt(url.searchParams.get('limit')) || 1000;
     
@@ -564,6 +692,8 @@ const server = http.createServer(async (req, res) => {
     if (dirPath.startsWith('~')) {
       dirPath = dirPath.replace('~', HOME_DIR);
     }
+    dirPath = safeBrowsePath(dirPath);
+    if (!dirPath) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside home directory' })); return; }
     
     try {
       // Run git status --porcelain to get file statuses
@@ -602,6 +732,99 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Get files Aria has modified
+  if (req.method === 'GET' && req.url === '/aria-modified') {
+    res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ files: [...ariaModifiedFiles] }));
+    return;
+  }
+
+  // Git commit (Aria can commit her changes)
+  if (req.method === 'POST' && req.url === '/git-commit') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { message, files } = JSON.parse(body);
+        const cwd = PROJECT_ROOT;
+        
+        // Stage files - either specific files or all Aria-modified files
+        const filesToStage = files || [...ariaModifiedFiles];
+        if (filesToStage.length === 0) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No files to commit' }));
+          return;
+        }
+        
+        // Stage each file
+        for (const f of filesToStage) {
+          await execAsync(`git add "${f}"`, { cwd });
+        }
+        
+        // Commit with message
+        const commitMsg = (message || `Aria: updated ${filesToStage.length} file(s)`)
+          .replace(/["\\`$]/g, '')  // Strip dangerous shell characters
+          .slice(0, 500);            // Limit length
+        const { stdout } = await execAsync(`git commit -m "${commitMsg}"`, { cwd });
+        
+        // Clear tracked files that were committed
+        for (const f of filesToStage) {
+          ariaModifiedFiles.delete(f);
+        }
+        
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: commitMsg, output: stdout.trim(), filesCommitted: filesToStage.length }));
+      } catch (e) {
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Git push (Aria can push to remote)
+  if (req.method === 'POST' && req.url === '/git-push') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { remote, branch } = JSON.parse(body || '{}');
+        const cwd = PROJECT_ROOT;
+        
+        // Get current branch if not specified
+        let pushBranch = branch;
+        if (!pushBranch) {
+          const { stdout } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd });
+          pushBranch = stdout.trim();
+        }
+        
+        const pushRemote = remote || 'origin';
+        const { stdout, stderr } = await execAsync(`git push ${pushRemote} ${pushBranch}`, { cwd, timeout: 30000 });
+        
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, remote: pushRemote, branch: pushBranch, output: (stdout + stderr).trim() }));
+      } catch (e) {
+        // If no upstream, try with --set-upstream
+        if (e.message.includes('no upstream') || e.stderr?.includes('--set-upstream')) {
+          try {
+            const { stdout: branchOut } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: PROJECT_ROOT });
+            const pushBranch = branchOut.trim();
+            const { stdout, stderr } = await execAsync(`git push --set-upstream origin ${pushBranch}`, { cwd: PROJECT_ROOT, timeout: 30000 });
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, remote: 'origin', branch: pushBranch, output: (stdout + stderr).trim(), setUpstream: true }));
+          } catch (e2) {
+            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: e2.message }));
+          }
+        } else {
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      }
+    });
+    return;
+  }
+
   // Browse any directory (including home)
   if (req.method === 'GET' && req.url.startsWith('/browse')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -610,6 +833,12 @@ const server = http.createServer(async (req, res) => {
     // Expand ~ to home directory
     if (dirPath.startsWith('~')) {
       dirPath = dirPath.replace('~', HOME_DIR);
+    }
+    dirPath = safeBrowsePath(dirPath);
+    if (!dirPath) {
+      res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Path outside home directory' }));
+      return;
     }
     
     try {
@@ -644,7 +873,8 @@ const server = http.createServer(async (req, res) => {
   // List files in directory
   if (req.method === 'GET' && req.url.startsWith('/files')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);
-    const dirPath = url.searchParams.get('path') || PROJECT_ROOT;
+    const dirPath = safeProjectPath(url.searchParams.get('path') || PROJECT_ROOT);
+    if (!dirPath) { res.writeHead(403, corsHeaders); res.end(JSON.stringify({ error: 'Path outside project root' })); return; }
     
     try {
       const items = fs.readdirSync(dirPath, { withFileTypes: true });
@@ -700,6 +930,12 @@ const server = http.createServer(async (req, res) => {
     if (filePath && !path.isAbsolute(filePath)) {
       filePath = path.join(PROJECT_ROOT, filePath);
     }
+    filePath = safeBrowsePath(filePath);
+    if (!filePath) {
+      res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Path outside home directory' }));
+      return;
+    }
     
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
@@ -724,6 +960,12 @@ const server = http.createServer(async (req, res) => {
         if (!path.isAbsolute(filePath)) {
           fullPath = path.join(PROJECT_ROOT, filePath);
         }
+        fullPath = safeBrowsePath(fullPath);
+        if (!fullPath) {
+          res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Path outside home directory' }));
+          return;
+        }
         
         // Get old content for history
         let oldContent = null;
@@ -743,6 +985,9 @@ const server = http.createServer(async (req, res) => {
         // Write file
         fs.writeFileSync(fullPath, content, 'utf-8');
         
+        // Track as Aria-modified
+        ariaModifiedFiles.add(fullPath);
+        
         // Record in history
         let historyEntry;
         if (isNew) {
@@ -761,14 +1006,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Execute command
+  // Execute command (sandboxed)
   if (req.method === 'POST' && req.url === '/exec') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const { command, cwd } = JSON.parse(body);
-        const workDir = cwd || PROJECT_ROOT;
+        
+        // Security: validate command against allowlist
+        if (!isExecAllowed(command)) {
+          res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false,
+            error: `Command blocked by security policy. Allowed prefixes: ${ALLOWED_EXEC_PREFIXES.slice(0, 10).join(', ')}...`,
+          }));
+          return;
+        }
+        
+        // Security: validate working directory
+        const workDir = safeProjectPath(cwd || PROJECT_ROOT);
+        if (!workDir) {
+          res.writeHead(403, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'Working directory outside project root' }));
+          return;
+        }
         
         const { stdout, stderr } = await execAsync(command, { 
           cwd: workDir,
@@ -885,19 +1147,158 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ============================================================================
+  // Conversations API
+  // ============================================================================
+
+  // List all conversations
+  if (req.method === 'GET' && req.url === '/conversations') {
+    try {
+      const conversations = await conversationStore.getAllConversations();
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ conversations }));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Get a specific conversation
+  if (req.method === 'GET' && req.url.startsWith('/conversations/') && !req.url.includes('/rename')) {
+    const id = req.url.split('/conversations/')[1].split('?')[0];
+    try {
+      const messages = await conversationStore.getConversation(id);
+      const conv = conversationStore.conversations.get(id);
+      if (!messages) {
+        res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Conversation not found' }));
+        return;
+      }
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id, title: conv?.title, messages }));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Create a new conversation
+  if (req.method === 'POST' && req.url === '/conversations') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { title } = JSON.parse(body || '{}');
+        const id = conversationStore.generateId();
+        const conv = await conversationStore.saveConversation(id, [], title || 'New Conversation');
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id: conv.id, title: conv.title }));
+      } catch (e) {
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Save a message to a conversation
+  if (req.method === 'POST' && req.url.match(/^\/conversations\/[^/]+\/messages$/)) {
+    const id = req.url.split('/conversations/')[1].split('/messages')[0];
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { role, content } = JSON.parse(body);
+        const messages = await conversationStore.addMessage(id, { role, content });
+        const conv = conversationStore.conversations.get(id);
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id, title: conv?.title, messageCount: messages.length }));
+      } catch (e) {
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Rename a conversation
+  if (req.method === 'POST' && req.url.match(/^\/conversations\/[^/]+\/rename$/)) {
+    const id = req.url.split('/conversations/')[1].split('/rename')[0];
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { title } = JSON.parse(body);
+        const conv = await conversationStore.renameConversation(id, title);
+        if (!conv) {
+          res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Conversation not found' }));
+          return;
+        }
+        res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ id: conv.id, title: conv.title }));
+      } catch (e) {
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // Delete a conversation
+  if (req.method === 'DELETE' && req.url.startsWith('/conversations/')) {
+    const id = req.url.split('/conversations/')[1].split('?')[0];
+    try {
+      const success = await conversationStore.deleteConversation(id);
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success }));
+    } catch (e) {
+      res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   // 404 for everything else
   res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
-// Start Braille WebSocket server
-const BRAILLE_WS_PORT = parseInt(process.env.BRAILLE_WS_PORT || '3201');
-const brailleWS = new BrailleWebSocketServer({ port: BRAILLE_WS_PORT });
-brailleWS.start();
+// Start Braille WebSocket server (non-fatal if port in use)
+const brailleWS = new BrailleWebSocketServer({ port: WS_PORT });
+try {
+  brailleWS.start();
+} catch (e) {
+  console.warn(`⚠️  BrailleWS failed to start: ${e.message} (non-fatal)`);
+}
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.warn(`⚠️  Port ${PORT} in use, killing stale process and retrying...`);
+    try {
+      const { execSync } = require('child_process');
+      execSync(`lsof -ti :${PORT} 2>/dev/null | xargs kill -9 2>/dev/null || true`, { stdio: 'ignore' });
+    } catch {}
+    setTimeout(() => {
+      server.listen(PORT, '0.0.0.0');
+    }, 1000);
+  } else {
+    console.error('Server error:', err);
+  }
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🤖 Aria IDE running at http://localhost:${PORT}`);
-  console.log(`⠃⠗ Braille WebSocket at ws://localhost:${BRAILLE_WS_PORT}`);
+  console.log(`⠃⠗ Braille WebSocket at ws://localhost:${WS_PORT}`);
+  if (AUTH_ENABLED) {
+    console.log(`\n🔒 Auth token: ${AUTH_TOKEN}`);
+    console.log(`   Set ARIA_AUTH_TOKEN in .env to use a fixed token.`);
+    console.log(`   Set ARIA_AUTH=disabled to disable auth (dev only).`);
+  } else {
+    console.log(`\n⚠️  Auth DISABLED (ARIA_AUTH=disabled). Do not use in production.`);
+  }
   console.log(`\n🖥️  UI:`);
   console.log(`   GET  /               - Aria IDE (full interface)`);
   console.log(`   GET  /ide            - Aria IDE (alias)`);
@@ -927,6 +1328,6 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`   POST /history/redo   - Redo last undone operation`);
   console.log(`   POST /history/restore - Restore file to point`);
   console.log(`\n⠃⠗ Braille WebSocket:`);
-  console.log(`   ws://localhost:${BRAILLE_WS_PORT} - Real-time braille braiding`);
+  console.log(`   ws://localhost:${WS_PORT} - Real-time braille braiding`);
   console.log(`   Messages: chat, swarm, encode, decode, feedback`);
 });

@@ -577,6 +577,18 @@
   <script>
     const SERVER = 'http://localhost:3200';
     const HOME = '/Users/ryanbarrett';
+
+    // Auth-aware fetch wrapper — injects Bearer token into all API requests
+    const _authHeaders = () => {
+      const h = { 'Content-Type': 'application/json' };
+      if (window.__ARIA_AUTH_TOKEN__) h['Authorization'] = `Bearer ${window.__ARIA_AUTH_TOKEN__}`;
+      return h;
+    };
+    async function authFetch(url, opts = {}) {
+      opts.headers = { ..._authHeaders(), ...(opts.headers || {}) };
+      return fetch(url, opts);
+    }
+
     let currentPath = HOME;
     let mode = 'both'; // 'braille' | 'english' | 'both'
     let gitStatus = {}; // path -> status (M, U, D)
@@ -632,7 +644,7 @@
       document.getElementById('path').textContent = currentPath.replace(HOME, '~');
       
       try {
-        const res = await fetch(`${SERVER}/browse?path=${encodeURIComponent(currentPath)}`);
+        const res = await authFetch(`${SERVER}/browse?path=${encodeURIComponent(currentPath)}`);
         const data = await res.json();
         
         const list = document.getElementById('fileList');
@@ -703,7 +715,7 @@
       setStatus(`Loading ${filePath.split('/').pop()}...`);
       
       try {
-        const res = await fetch(`${SERVER}/file?path=${encodeURIComponent(filePath)}`);
+        const res = await authFetch(`${SERVER}/file?path=${encodeURIComponent(filePath)}`);
         
         if (!res.ok) throw new Error('Could not read file');
         
@@ -805,9 +817,8 @@
       saveMessage('user', text);
       
       try {
-        const res = await fetch(`${SERVER}/chat`, {
+        const res = await authFetch(`${SERVER}/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text })
         });
         
@@ -889,7 +900,7 @@
     // Fetch git status for current directory
     async function fetchGitStatus() {
       try {
-        const res = await fetch(`${SERVER}/git-status?path=${encodeURIComponent(currentPath)}`);
+        const res = await authFetch(`${SERVER}/git-status?path=${encodeURIComponent(currentPath)}`);
         if (res.ok) {
           const data = await res.json();
           gitStatus = data.files || {};
@@ -902,7 +913,7 @@
     // Fetch Aria-modified files
     async function fetchAriaModified() {
       try {
-        const res = await fetch(`${SERVER}/aria-modified`);
+        const res = await authFetch(`${SERVER}/aria-modified`);
         if (res.ok) {
           const data = await res.json();
           ariaModified = new Set(data.files || []);
@@ -932,9 +943,8 @@
     async function saveMessage(role, content) {
       if (!currentConvId) return;
       try {
-        const res = await fetch(`${SERVER}/conversations/${currentConvId}/messages`, {
+        const res = await authFetch(`${SERVER}/conversations/${currentConvId}/messages`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role, content })
         });
         const data = await res.json();
@@ -951,9 +961,8 @@
 
     async function newConversation(clearChat = true) {
       try {
-        const res = await fetch(`${SERVER}/conversations`, {
+        const res = await authFetch(`${SERVER}/conversations`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({})
         });
         const data = await res.json();
@@ -963,7 +972,7 @@
         if (clearChat) {
           document.getElementById('messages').innerHTML = '';
           // Clear agent history on server too
-          fetch(`${SERVER}/clear`, { method: 'POST' }).catch(() => {});
+          authFetch(`${SERVER}/clear`, { method: 'POST' }).catch(() => {});
         }
         
         await loadConversations();
@@ -975,7 +984,7 @@
 
     async function loadConversation(id) {
       try {
-        const res = await fetch(`${SERVER}/conversations/${id}`);
+        const res = await authFetch(`${SERVER}/conversations/${id}`);
         const data = await res.json();
         
         currentConvId = id;
@@ -1000,7 +1009,7 @@
 
     async function loadConversations() {
       try {
-        const res = await fetch(`${SERVER}/conversations`);
+        const res = await authFetch(`${SERVER}/conversations`);
         const data = await res.json();
         conversations = data.conversations || [];
         
@@ -1044,7 +1053,7 @@
     async function deleteConversation(id) {
       if (!confirm('Delete this conversation?')) return;
       try {
-        await fetch(`${SERVER}/conversations/${id}`, { method: 'DELETE' });
+        await authFetch(`${SERVER}/conversations/${id}`, { method: 'DELETE' });
         if (id === currentConvId) {
           currentConvId = null;
           document.getElementById('messages').innerHTML = '';
@@ -1063,9 +1072,8 @@
       if (!newTitle || newTitle === currentTitle) return;
       
       try {
-        await fetch(`${SERVER}/conversations/${currentConvId}/rename`, {
+        await authFetch(`${SERVER}/conversations/${currentConvId}/rename`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title: newTitle })
         });
         document.getElementById('chatTitle').textContent = newTitle;

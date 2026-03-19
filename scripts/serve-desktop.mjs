@@ -1,9 +1,14 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { config } from 'dotenv';
+
+config();
 
 const root = path.resolve('desktop');
 const port = Number(process.env.PORT || 4173);
+const AUTH_TOKEN = process.env.ARIA_AUTH_TOKEN || '';
+const AUTH_ENABLED = process.env.ARIA_AUTH !== 'disabled';
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -53,11 +58,23 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const data = await fs.readFile(filePath);
+    const ext = path.extname(filePath);
+    
+    // Inject auth token into HTML pages so the frontend can authenticate with the API
+    let output = data;
+    if (ext === '.html' && AUTH_ENABLED && AUTH_TOKEN) {
+      const html = data.toString('utf-8');
+      output = html.replace(
+        '<script>',
+        `<script>window.__ARIA_AUTH_TOKEN__='${AUTH_TOKEN}';`
+      );
+    }
+    
     res.writeHead(200, {
-      'Content-Type': mime[path.extname(filePath)] ?? 'application/octet-stream',
+      'Content-Type': mime[ext] ?? 'application/octet-stream',
       'Cache-Control': 'no-cache',
     });
-    res.end(data);
+    res.end(output);
   } catch {
     res.writeHead(404);
     res.end('Not found');
