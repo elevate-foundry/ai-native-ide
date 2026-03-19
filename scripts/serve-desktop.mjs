@@ -41,11 +41,8 @@ const server = http.createServer(async (req, res) => {
   // Strip query string from URL
   let requestPath = req.url.split('?')[0];
   
-  // Always serve ide.html as the default (full IDE with braille)
-  if (requestPath === '/') requestPath = '/ide.html';
-  
-  // Redirect /ide to /ide.html
-  if (requestPath === '/ide') requestPath = '/ide.html';
+  // Serve index.html as the default
+  if (requestPath === '/') requestPath = '/index.html';
   const filePath = path.resolve(root, `.${requestPath}`);
 
   if (!filePath.startsWith(root)) {

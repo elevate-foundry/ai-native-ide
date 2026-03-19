@@ -556,6 +556,52 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Git status for a directory
+  if (req.method === 'GET' && req.url.startsWith('/git-status')) {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    let dirPath = url.searchParams.get('path') || PROJECT_ROOT;
+    
+    if (dirPath.startsWith('~')) {
+      dirPath = dirPath.replace('~', HOME_DIR);
+    }
+    
+    try {
+      // Run git status --porcelain to get file statuses
+      const { stdout } = await execAsync('git status --porcelain', { cwd: dirPath });
+      const files = {};
+      
+      for (const line of stdout.split('\n')) {
+        if (!line.trim()) continue;
+        const status = line.slice(0, 2).trim();
+        const filePath = line.slice(3);
+        
+        // Map git status codes to simple letters
+        let simpleStatus = '';
+        if (status.includes('M') || status.includes('A') || status.includes('R')) {
+          simpleStatus = 'M'; // Modified/Added/Renamed
+        } else if (status.includes('?')) {
+          simpleStatus = 'U'; // Untracked
+        } else if (status.includes('D')) {
+          simpleStatus = 'D'; // Deleted
+        }
+        
+        if (simpleStatus) {
+          files[filePath] = simpleStatus;
+          // Also add just the filename for matching
+          files[path.basename(filePath)] = simpleStatus;
+        }
+      }
+      
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ path: dirPath, files }));
+    } catch (e) {
+      // Not a git repo or git not available
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ path: dirPath, files: {}, error: 'Not a git repository' }));
+    }
+    return;
+  }
+
   // Browse any directory (including home)
   if (req.method === 'GET' && req.url.startsWith('/browse')) {
     const url = new URL(req.url, `http://localhost:${PORT}`);

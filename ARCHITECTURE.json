@@ -8,15 +8,17 @@
   },
   "layers": {
     "desktop": {
-      "description": "Tauri v2 desktop shell — Rust backend + web frontend",
+      "description": "Minimal chat + file browser — Aria builds the rest",
       "entrypoint": "src-tauri/src/main.rs",
-      "frontend": "desktop/ide.html",
+      "frontend": "desktop/index.html",
+      "archived": "desktop/archive/ (complex IDE preserved for reference)",
       "responsibilities": [
-        "Window management and native OS integration",
-        "Spawn and manage the Node.js aria-server process",
-        "Health checking via IPC commands",
-        "Serve the IDE frontend from desktop/"
-      ]
+        "Chat interface with streaming responses",
+        "Local file/folder browser",
+        "Braille/English display toggle (both → braille → english)",
+        "Foundation for Aria-built extensions"
+      ],
+      "design_philosophy": "Minimal viable interface — Aria builds what the user needs"
     },
     "server": {
       "description": "Node.js HTTP + WebSocket server — the agent's brain",
@@ -72,6 +74,21 @@
         "world-model.js": "Persistent knowledge graph (entities, relations, facts, observations)",
         "file-history.js": "Full file operation history with undo/redo"
       }
+    },
+    "version_control": {
+      "description": "Git-like version control system for perfect file tracking",
+      "entrypoint": "src/version-control.js",
+      "storage": ".aria/ directory in workspace",
+      "features": [
+        "Content-addressable storage (SHA-256 hashes)",
+        "Commits with messages and timestamps",
+        "Branches and checkout",
+        "Diff generation",
+        "Full history traversal",
+        "Rollback to any commit",
+        "Stash and stash pop"
+      ],
+      "tools": ["vcs_init", "vcs_status", "vcs_stage", "vcs_commit", "vcs_log", "vcs_diff", "vcs_branch", "vcs_checkout", "vcs_rollback", "vcs_stash", "vcs_stash_pop"]
     },
     "core": {
       "description": "Runtime loop engine — plan/execute/observe/evaluate cycle",
@@ -230,7 +247,7 @@
     }
   },
   "dependency_graph": {
-    "desktop/ide.html → desktop/ide.js → scripts/aria-server.mjs (HTTP)": "Frontend talks to server via fetch/SSE",
+    "desktop/index.html → scripts/aria-server.mjs (HTTP)": "Minimal frontend talks to server via fetch/SSE",
     "scripts/aria-server.mjs → src/agent.js": "Server instantiates the agent",
     "src/agent.js → src/tools.js": "Agent dispatches tool calls",
     "src/agent.js → src/llm.cjs": "Agent calls OpenRouter for LLM responses",
@@ -254,10 +271,15 @@
       "server_to_llm": "HTTPS to OpenRouter API (streaming)",
       "braille_streaming": "WebSocket on port 3201",
       "tauri_ipc": "Tauri invoke_handler for native commands"
+    },
+    "credentials": {
+      "openrouter": "OPENROUTER_API_KEY in .env — Aria has full access to all OpenRouter models",
+      "note": "Aria should read .env to get API keys when needed"
     }
   },
   "what_makes_this_different": [
     "Aria can read this file — she knows her own architecture",
+    "The frontend is intentionally minimal — just chat + files — so Aria builds what the user needs",
     "The introspect tool lets Aria examine any of her own modules at runtime",
     "Braille encoding is not a gimmick — it's a compression and normalization layer for multi-model fusion",
     "The agent loop (core.js) is a real plan→execute→observe→evaluate cycle, not just chat",

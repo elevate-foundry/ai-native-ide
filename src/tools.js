@@ -13,6 +13,7 @@ const { BraidedLLMTools, BRAIDED_LLM_TOOLS } = require('./braided-llm');
 const { IntrospectionTools, INTROSPECTION_TOOLS } = require('./introspection');
 const { SelfImprovementTools, SELF_IMPROVEMENT_TOOLS } = require('./self-improvement');
 const { MemoryStrategyTools, MEMORY_STRATEGY_TOOLS } = require('./memory-strategy');
+const { VersionControlTools, VERSION_CONTROL_TOOLS } = require('./version-control');
 
 const execAsync = promisify(exec);
 
@@ -249,6 +250,8 @@ const TOOL_DEFINITIONS = [
   ...SELF_IMPROVEMENT_TOOLS,
   // Add Memory Strategy tools (adaptive memory management)
   ...MEMORY_STRATEGY_TOOLS,
+  // Add Version Control tools (git-like VCS)
+  ...VERSION_CONTROL_TOOLS,
 ];
 
 // ============================================================================
@@ -493,6 +496,14 @@ class AriaTools {
     if (toolName.startsWith('aria_select_memory') || toolName.startsWith('aria_execute_memory') ||
         toolName === 'aria_check_resources' || toolName === 'aria_memory_status') {
       return this.memoryStrategy.execute(toolName, params, this._context);
+    }
+    
+    // Check if it's a version control tool
+    if (toolName.startsWith('vcs_')) {
+      if (!this.versionControl) {
+        this.versionControl = new VersionControlTools(this.workdir);
+      }
+      return this.versionControl.execute(toolName, params);
     }
     
     const method = this[toolName];

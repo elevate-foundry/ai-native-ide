@@ -312,6 +312,262 @@ Synthesize these perspectives into a single, coherent, high-quality response tha
 }
 
 // ============================================================================
+// Dual-Stream Braiding (Braille + English simultaneously)
+// ============================================================================
+
+/**
+ * DualStreamBraid - Maintains both braille and English representations
+ * simultaneously as tokens stream from each router in the braid.
+ * 
+ * Emits events with both representations, allowing UI to toggle between them.
+ */
+class DualStreamBraid {
+  constructor(options = {}) {
+    this.models = options.models || DEFAULT_MODELS;
+    this.strategy = options.strategy || 'sentence';
+    this.apiKey = options.apiKey;
+    this.listeners = new Map();
+    
+    // Dual buffers for each model
+    this.streams = new Map(); // modelId -> { english: '', braille: '' }
+    this.braidedEnglish = '';
+    this.braidedBraille = '';
+    
+    // Display mode: 'braille' | 'english' | 'both'
+    this.displayMode = options.displayMode || 'both';
+  }
+  
+  on(event, callback) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event).push(callback);
+    return this;
+  }
+  
+  emit(event, data) {
+    const callbacks = this.listeners.get(event) || [];
+    callbacks.forEach(cb => cb(data));
+  }
+  
+  setDisplayMode(mode) {
+    this.displayMode = mode;
+    this.emit('modeChange', { mode, braille: this.braidedBraille, english: this.braidedEnglish });
+  }
+  
+  /**
+   * Stream query to multiple models with dual output
+   */
+  async streamBraidedQuery(prompt, systemPrompt = 'Be concise and direct.') {
+    // Initialize streams for each model
+    this.models.forEach(model => {
+      this.streams.set(model, { english: '', braille: '' });
+    });
+    
+    this.emit('start', { models: this.models, prompt });
+    
+    // Query all models in parallel with streaming
+    const streamPromises = this.models.map(model => 
+      this._streamModel(model, prompt, systemPrompt)
+    );
+    
+    await Promise.allSettled(streamPromises);
+    
+    // Final braid of all complete responses
+    this._finalBraid();
+    
+    this.emit('complete', {
+      braille: this.braidedBraille,
+      english: this.braidedEnglish,
+      sources: Array.from(this.streams.entries()).map(([model, data]) => ({
+        model,
+        english: data.english,
+        braille: data.braille,
+      })),
+    });
+    
+    return {
+      braille: this.braidedBraille,
+      english: this.braidedEnglish,
+    };
+  }
+  
+  async _streamModel(model, prompt, systemPrompt) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'HTTP-Referer': 'https://github.com/elevate-foundry/ai-native-ide',
+          'X-Title': 'Aria Dual-Stream Braid',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+          stream: true,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`${model} error: ${response.status}`);
+      }
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+        
+        for (const line of lines) {
+          if (line === 'data: [DONE]') continue;
+          
+          try {
+            const data = JSON.parse(line.slice(6));
+            const content = data.choices?.[0]?.delta?.content;
+            
+            if (content) {
+              this._handleChunk(model, content);
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+      
+      this.emit('modelComplete', {
+        model,
+        english: this.streams.get(model).english,
+        braille: this.streams.get(model).braille,
+      });
+      
+    } catch (e) {
+      this.emit('modelError', { model, error: e.message });
+    }
+  }
+  
+  _handleChunk(model, content) {
+    const stream = this.streams.get(model);
+    if (!stream) return;
+    
+    // Update English buffer
+    stream.english += content;
+    
+    // Update Braille buffer (convert chunk to braille)
+    const brailleChunk = textToBraille(content);
+    stream.braille += brailleChunk;
+    
+    // Emit dual chunk event
+    this.emit('chunk', {
+      model,
+      english: content,
+      braille: brailleChunk,
+      totalEnglish: stream.english,
+      totalBraille: stream.braille,
+    });
+    
+    // Incremental braid update
+    this._incrementalBraid();
+  }
+  
+  _incrementalBraid() {
+    // Get all current English responses
+    const englishResponses = Array.from(this.streams.values()).map(s => s.english);
+    
+    // Braid based on strategy
+    switch (this.strategy) {
+      case 'word':
+        this.braidedEnglish = braidByWord(englishResponses);
+        break;
+      case 'char':
+        this.braidedEnglish = braidByChar(englishResponses);
+        break;
+      case 'sentence':
+      default:
+        this.braidedEnglish = braidBySentence(englishResponses);
+        break;
+    }
+    
+    // Convert braided English to braille
+    this.braidedBraille = textToBraille(this.braidedEnglish);
+    
+    // Emit braided update
+    this.emit('braidUpdate', {
+      english: this.braidedEnglish,
+      braille: this.braidedBraille,
+      displayMode: this.displayMode,
+    });
+  }
+  
+  _finalBraid() {
+    this._incrementalBraid();
+  }
+  
+  /**
+   * Get current display content based on mode
+   */
+  getDisplayContent() {
+    switch (this.displayMode) {
+      case 'braille':
+        return this.braidedBraille;
+      case 'english':
+        return this.braidedEnglish;
+      case 'both':
+      default:
+        return {
+          braille: this.braidedBraille,
+          english: this.braidedEnglish,
+        };
+    }
+  }
+  
+  /**
+   * Toggle between braille and English display
+   */
+  toggleDisplay() {
+    if (this.displayMode === 'braille') {
+      this.setDisplayMode('english');
+    } else if (this.displayMode === 'english') {
+      this.setDisplayMode('both');
+    } else {
+      this.setDisplayMode('braille');
+    }
+    return this.displayMode;
+  }
+}
+
+/**
+ * Create a dual-stream braided response
+ */
+async function dualStreamBraidedResponse(apiKey, prompt, options = {}) {
+  const braid = new DualStreamBraid({
+    apiKey,
+    models: options.models || DEFAULT_MODELS,
+    strategy: options.strategy || 'sentence',
+    displayMode: options.displayMode || 'both',
+  });
+  
+  // Attach any provided listeners
+  if (options.onChunk) braid.on('chunk', options.onChunk);
+  if (options.onBraidUpdate) braid.on('braidUpdate', options.onBraidUpdate);
+  if (options.onComplete) braid.on('complete', options.onComplete);
+  if (options.onModelComplete) braid.on('modelComplete', options.onModelComplete);
+  if (options.onModelError) braid.on('modelError', options.onModelError);
+  if (options.onModeChange) braid.on('modeChange', options.onModeChange);
+  
+  return braid.streamBraidedQuery(prompt, options.systemPrompt);
+}
+
+// ============================================================================
 // Tool Definitions for Aria
 // ============================================================================
 
@@ -467,4 +723,7 @@ module.exports = {
   semanticBrailleFusion,
   BraidedLLMTools,
   BRAIDED_LLM_TOOLS,
+  // Dual-stream braiding
+  DualStreamBraid,
+  dualStreamBraidedResponse,
 };

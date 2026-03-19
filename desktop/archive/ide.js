@@ -599,12 +599,14 @@ function toDisplayBraille(text) {
   return text.toLowerCase().split('').map(c => BRAILLE_6DOT_MAP[c] || byteToBraille(c.charCodeAt(0))).join('');
 }
 
-let showBrailleMode = true; // Toggle for braille display
+// Display mode: 'braille' | 'english' | 'both'
+let displayMode = 'both';
 
 function appendChatMessage(role, content, images = []) {
   const messages = document.getElementById('chatMessages');
   const msg = document.createElement('div');
   msg.className = `chat-message ${role}`;
+  msg.dataset.displayMode = displayMode;
   
   // Add images if present
   if (images.length > 0) {
@@ -621,18 +623,21 @@ function appendChatMessage(role, content, images = []) {
   
   // Add text content with braille encoding for assistant messages
   if (content) {
-    // Always show braille first for assistant messages
     if (role === 'assistant') {
-      // Braille-encoded response (the "bottleneck")
+      // Braille-encoded response
       const brailleEl = document.createElement('div');
       brailleEl.className = 'chat-braille';
       brailleEl.textContent = toBraille(content);
+      brailleEl.style.display = (displayMode === 'braille' || displayMode === 'both') ? 'block' : 'none';
       msg.appendChild(brailleEl);
       
       // English translation
       const textEl = document.createElement('div');
       textEl.className = 'chat-text chat-translation';
-      textEl.innerHTML = `<span class="translation-label">⟶ English:</span> ${content}`;
+      textEl.innerHTML = displayMode === 'both' 
+        ? `<span class="translation-label">⟶ English:</span> ${content}`
+        : content;
+      textEl.style.display = (displayMode === 'english' || displayMode === 'both') ? 'block' : 'none';
       msg.appendChild(textEl);
     } else {
       const textEl = document.createElement('div');
@@ -648,8 +653,62 @@ function appendChatMessage(role, content, images = []) {
 }
 
 function toggleBrailleMode() {
-  showBrailleMode = !showBrailleMode;
-  setStatus(showBrailleMode ? '⠃⠗⠁⠊⠇⠇⠑ Braille mode ON' : 'Braille mode OFF', 'info');
+  // Cycle through modes: both -> braille -> english -> both
+  if (displayMode === 'both') {
+    displayMode = 'braille';
+  } else if (displayMode === 'braille') {
+    displayMode = 'english';
+  } else {
+    displayMode = 'both';
+  }
+  
+  // Update toggle button appearance
+  const toggleBtn = document.getElementById('brailleToggle');
+  if (toggleBtn) {
+    toggleBtn.textContent = displayMode === 'braille' ? '⠃⠗' : displayMode === 'english' ? 'EN' : '⠃⠗/EN';
+    toggleBtn.title = `Display: ${displayMode} (click to toggle)`;
+    toggleBtn.className = `display-mode-${displayMode}`;
+  }
+  
+  // Update all existing assistant messages
+  document.querySelectorAll('.chat-message.assistant').forEach(msg => {
+    const brailleEl = msg.querySelector('.chat-braille');
+    const textEl = msg.querySelector('.chat-text');
+    
+    if (brailleEl) {
+      brailleEl.style.display = (displayMode === 'braille' || displayMode === 'both') ? 'block' : 'none';
+    }
+    if (textEl) {
+      textEl.style.display = (displayMode === 'english' || displayMode === 'both') ? 'block' : 'none';
+      // Update label visibility
+      const label = textEl.querySelector('.translation-label');
+      if (label) {
+        label.style.display = displayMode === 'both' ? 'inline' : 'none';
+      }
+    }
+  });
+  
+  const modeLabels = { braille: '⠃⠗⠁⠊⠇⠇⠑ Braille only', english: 'English only', both: '⠃⠗/EN Both' };
+  setStatus(modeLabels[displayMode], 'info');
+}
+
+// Get current display mode
+function getDisplayMode() {
+  return displayMode;
+}
+
+// Set display mode programmatically
+function setDisplayMode(mode) {
+  if (['braille', 'english', 'both'].includes(mode)) {
+    displayMode = mode;
+    toggleBrailleMode(); // This will cycle, so we set it to previous
+    // Actually just update directly
+    displayMode = mode;
+    const toggleBtn = document.getElementById('brailleToggle');
+    if (toggleBtn) {
+      toggleBtn.textContent = displayMode === 'braille' ? '⠃⠗' : displayMode === 'english' ? 'EN' : '⠃⠗/EN';
+    }
+  }
 }
 
 window.toggleBrailleMode = toggleBrailleMode;
@@ -658,6 +717,8 @@ window.fromBraille = fromBraille;
 window.toDisplayBraille = toDisplayBraille;
 window.byteToBraille = byteToBraille;
 window.brailleToByte = brailleToByte;
+window.getDisplayMode = getDisplayMode;
+window.setDisplayMode = setDisplayMode;
 
 // ============================================================================
 // Braille WebSocket Client

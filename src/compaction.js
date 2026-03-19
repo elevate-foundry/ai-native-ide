@@ -13,7 +13,15 @@
  */
 
 const { createLLMClient } = require('./llm.cjs');
-const { BrailleHarness, braidConversation, findDuplicates } = require('./braille-harness');
+const { 
+  BrailleHarness, 
+  braidConversation, 
+  findDuplicates,
+  DeduplicationEngine,
+  createBrailleSummaryPrompt,
+  parseBrailleSummary,
+  createHybridSummary,
+} = require('./braille-harness');
 
 // Approximate token counts (rough estimates)
 const CHARS_PER_TOKEN = 4;
@@ -284,6 +292,7 @@ function incrementalCompact(history, options = {}) {
 
 /**
  * Context manager class for Aria
+ * Enhanced with braille-native compression, deduplication, and LLM summaries
  */
 class ContextManager {
   constructor(options = {}) {
@@ -293,7 +302,9 @@ class ContextManager {
     this.llmClient = options.llmClient || null;
     this.autoCompact = options.autoCompact !== false;
     this.useBrailleHarness = options.useBrailleHarness !== false;
+    this.useBrailleSummaries = options.useBrailleSummaries || false;
     this.brailleHarness = new BrailleHarness({ useContractions: true });
+    this.deduplicationEngine = new DeduplicationEngine({ harness: this.brailleHarness });
   }
 
   async compact(history) {
@@ -306,40 +317,97 @@ class ContextManager {
   }
 
   /**
-   * Braille-enhanced compaction using UEB harness
-   * 1. Braid all messages into braille form
-   * 2. Find duplicates via fingerprinting
-   * 3. Remove redundant content
-   * 4. Unbraid back to text
+   * Full braille-enhanced compaction pipeline
+   * 1. Deduplicate tool outputs using braille fingerprints
+   * 2. Generate braille-compressed summaries for old messages
+   * 3. Apply semantic compression via UEB contractions
    */
   async compactWithBraille(history) {
     if (!this.useBrailleHarness) {
       return this.compact(history);
     }
 
-    // Step 1: Braid conversation into braille
-    const braided = braidConversation(history, this.brailleHarness);
+    const startTokens = estimateHistoryTokens(history);
     
-    // Step 2: Find duplicate messages by fingerprint
+    // Step 1: Deduplicate tool outputs
+    this.deduplicationEngine.reset();
+    const { history: dedupedHistory, stats: dedupStats } = 
+      this.deduplicationEngine.deduplicateHistory(history);
+    
+    // Step 2: Braid conversation into braille for fingerprinting
+    const braided = braidConversation(dedupedHistory, this.brailleHarness);
+    
+    // Step 3: Find and remove duplicate messages
     const duplicates = findDuplicates(braided);
-    
-    // Step 3: Mark duplicates for removal/reference
-    const deduped = braided.filter((msg, idx) => {
-      // Keep if not a duplicate, or if it's the original
+    const uniqueMessages = braided.filter((msg, idx) => {
       return !duplicates.some(d => d.duplicate === idx);
     });
     
-    // Step 4: Strip braille metadata and return
-    const result = deduped.map(({ _braille, _fingerprint, ...msg }) => msg);
+    // Step 4: Split into old and recent messages
+    const windowStart = Math.max(0, uniqueMessages.length - this.slidingWindowSize * 2);
+    const oldMessages = uniqueMessages.slice(0, windowStart);
+    const recentMessages = uniqueMessages.slice(windowStart);
     
-    // Step 5: Apply standard compaction on top
-    const compacted = await this.compact(result);
+    // Step 5: Generate braille-compressed summary for old messages
+    let summaryMessage = null;
+    if (oldMessages.length > 0) {
+      if (this.useBrailleSummaries && this.llmClient) {
+        // Use LLM to generate braille summary
+        const prompt = createBrailleSummaryPrompt(oldMessages);
+        try {
+          const response = await this.llmClient.chat([{ role: 'user', content: prompt }], {
+            maxTokens: 150,
+            temperature: 0.3,
+          });
+          summaryMessage = {
+            role: 'system',
+            content: `[BRAILLE CONTEXT]\n${response.content}\n[END CONTEXT]`,
+            _brailleSummary: true,
+          };
+        } catch (e) {
+          // Fallback to hybrid summary
+          const hybrid = createHybridSummary(oldMessages, this.brailleHarness);
+          summaryMessage = {
+            role: 'system',
+            content: `[CONTEXT: ${hybrid.text}]\n⠃⠗: ${hybrid.braille}`,
+            _brailleSummary: true,
+          };
+        }
+      } else {
+        // Use hybrid summary (braille + text)
+        const hybrid = createHybridSummary(oldMessages, this.brailleHarness);
+        summaryMessage = {
+          role: 'system',
+          content: `[CONTEXT: ${hybrid.text}]`,
+          _compressionRatio: hybrid.compressionRatio,
+        };
+      }
+    }
+    
+    // Step 6: Strip braille metadata and assemble result
+    const cleanRecent = recentMessages.map(({ _braille, _fingerprint, ...msg }) => msg);
+    const result = summaryMessage ? [summaryMessage, ...cleanRecent] : cleanRecent;
+    
+    const endTokens = estimateHistoryTokens(result);
     
     return {
-      ...compacted,
+      history: result,
+      compacted: true,
+      tokensBefore: startTokens,
+      tokensAfter: endTokens,
+      reduction: Math.round((1 - endTokens / startTokens) * 100),
       duplicatesRemoved: duplicates.length,
+      dedupStats,
       brailleStats: this.brailleHarness.getStats(),
     };
+  }
+
+  /**
+   * Quick deduplication pass for tool outputs only
+   * Use this for incremental compaction between full compactions
+   */
+  deduplicateToolOutputs(history) {
+    return this.deduplicationEngine.deduplicateHistory(history);
   }
 
   incrementalCompact(history) {
@@ -359,6 +427,31 @@ class ContextManager {
   getBrailleStats() {
     return this.brailleHarness.getStats();
   }
+
+  getDeduplicationStats() {
+    return this.deduplicationEngine.getStats();
+  }
+
+  /**
+   * Get compression metrics for the current session
+   */
+  getCompressionMetrics() {
+    const brailleStats = this.brailleHarness.getStats();
+    const dedupStats = this.deduplicationEngine.getStats();
+    
+    return {
+      braille: {
+        compressionRatio: brailleStats.compressionRatio,
+        contractionsApplied: brailleStats.contractionsApplied,
+      },
+      deduplication: {
+        duplicatesFound: dedupStats.duplicatesFound,
+        bytesDeduped: dedupStats.bytesDeduped,
+      },
+      totalSavingsEstimate: dedupStats.bytesDeduped + 
+        (brailleStats.totalCharsIn - brailleStats.totalBrailleOut),
+    };
+  }
 }
 
 module.exports = {
@@ -370,6 +463,10 @@ module.exports = {
   incrementalCompact,
   ContextManager,
   BrailleHarness,
+  DeduplicationEngine,
+  createBrailleSummaryPrompt,
+  parseBrailleSummary,
+  createHybridSummary,
   CHARS_PER_TOKEN,
   DEFAULT_MAX_TOKENS,
   SLIDING_WINDOW_SIZE,

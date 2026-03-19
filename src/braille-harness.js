@@ -19,7 +19,7 @@ const BRAILLE_BASE = 0x2800;
 // ============================================================================
 
 const UEB_CONTRACTIONS = {
-  // Single-cell whole word contractions
+  // Single-cell whole word contractions (Grade 2 UEB)
   'but': '⠃',
   'can': '⠉',
   'do': '⠙',
@@ -55,6 +55,68 @@ const UEB_CONTRACTIONS = {
   'out': '⠳',
   'still': '⠌',
   
+  // Additional high-frequency words for compaction
+  'about': '⠁⠃',
+  'after': '⠁⠋',
+  'again': '⠁⠛',
+  'also': '⠁⠇',
+  'always': '⠁⠇⠺',
+  'because': '⠃⠉',
+  'before': '⠃⠋',
+  'between': '⠃⠞',
+  'could': '⠉⠙',
+  'would': '⠺⠙',
+  'should': '⠩⠙',
+  'been': '⠃⠝',
+  'being': '⠃⠛',
+  'does': '⠙⠎',
+  'done': '⠙⠝',
+  'each': '⠑⠡',
+  'even': '⠑⠧',
+  'first': '⠋⠌',
+  'found': '⠋⠙',
+  'good': '⠛⠙',
+  'great': '⠛⠗',
+  'here': '⠓⠗',
+  'into': '⠔',
+  'know': '⠅⠝',
+  'made': '⠍⠙',
+  'make': '⠍⠅',
+  'many': '⠍⠽',
+  'must': '⠍⠌',
+  'need': '⠝⠙',
+  'never': '⠝⠧',
+  'only': '⠕⠝',
+  'other': '⠕⠮',
+  'over': '⠕⠧',
+  'said': '⠎⠙',
+  'same': '⠎⠍',
+  'some': '⠎⠍',
+  'such': '⠎⠡',
+  'than': '⠮⠝',
+  'their': '⠮⠗',
+  'them': '⠮⠍',
+  'then': '⠮⠝',
+  'there': '⠮⠗',
+  'these': '⠮⠎',
+  'they': '⠮⠽',
+  'think': '⠹⠅',
+  'through': '⠹⠗',
+  'time': '⠞⠍',
+  'under': '⠥⠝',
+  'upon': '⠥⠏',
+  'used': '⠥⠙',
+  'using': '⠥⠛',
+  'want': '⠺⠞',
+  'well': '⠺⠇',
+  'were': '⠺⠗',
+  'what': '⠱⠞',
+  'when': '⠱⠝',
+  'where': '⠱⠗',
+  'while': '⠱⠇',
+  'work': '⠺⠅',
+  'your': '⠽⠗',
+  
   // Programming-specific contractions (custom extension)
   'function': '⣋⣥',
   'return': '⣗⣞',
@@ -63,8 +125,6 @@ const UEB_CONTRACTIONS = {
   'var': '⣧⣗',
   'if': '⣊⣋',
   'else': '⣑⣇',
-  'while': '⣺⣓',
-  'for': '⣋⣗',
   'class': '⣉⣇',
   'import': '⣊⣍',
   'export': '⣑⣭',
@@ -82,6 +142,44 @@ const UEB_CONTRACTIONS = {
   'array': '⣁⣗⣗',
   'object': '⣕⣃⣚',
   'promise': '⣏⣗⣍',
+  
+  // Tool/action contractions for compaction summaries
+  'file': '⣋⣇',
+  'read': '⣗⣙',
+  'write': '⣺⣗',
+  'create': '⣉⣗',
+  'delete': '⣙⣇',
+  'update': '⣥⣏',
+  'search': '⣎⣗',
+  'found': '⣋⣙',
+  'success': '⣎⣉',
+  'failed': '⣋⣇⣙',
+  'directory': '⣙⣗',
+  'path': '⣏⣞',
+  'content': '⣉⣞',
+  'result': '⣗⣎',
+  'output': '⣕⣏',
+  'input': '⣊⣏',
+  'command': '⣉⣍⣙',
+  'execute': '⣑⣭⣉',
+  'browser': '⣃⣗⣺',
+  'navigate': '⣝⣧⣛',
+  'click': '⣉⣇⣅',
+  'type': '⣞⣏',
+  'snapshot': '⣎⣝⣏',
+  'element': '⣑⣇⣍',
+  'selector': '⣎⣇⣉',
+  'response': '⣗⣎⣏',
+  'request': '⣗⣟⣎',
+  'message': '⣍⣎⣛',
+  'user': '⣥⣎⣗',
+  'assistant': '⣁⣎⣞',
+  'tool': '⣞⣇',
+  'called': '⣉⣇⣙',
+  'completed': '⣉⣍⣏',
+  'modified': '⣍⣙⣋',
+  'created': '⣉⣗⣙',
+  'deleted': '⣙⣇⣙',
 };
 
 // Reverse map for decoding
@@ -351,6 +449,245 @@ function findDuplicates(braidedHistory) {
 }
 
 // ============================================================================
+// Deduplication Engine
+// ============================================================================
+
+/**
+ * Semantic similarity using braille fingerprints
+ * Returns similarity score 0-1 based on shared n-grams
+ */
+function brailleSimilarity(braille1, braille2) {
+  if (!braille1 || !braille2) return 0;
+  
+  const ngrams1 = new Set();
+  const ngrams2 = new Set();
+  const n = 3; // trigrams
+  
+  for (let i = 0; i <= braille1.length - n; i++) {
+    ngrams1.add(braille1.slice(i, i + n));
+  }
+  for (let i = 0; i <= braille2.length - n; i++) {
+    ngrams2.add(braille2.slice(i, i + n));
+  }
+  
+  if (ngrams1.size === 0 || ngrams2.size === 0) return 0;
+  
+  let intersection = 0;
+  for (const ng of ngrams1) {
+    if (ngrams2.has(ng)) intersection++;
+  }
+  
+  return (2 * intersection) / (ngrams1.size + ngrams2.size);
+}
+
+/**
+ * Deduplication engine for tool outputs and messages
+ * Identifies and removes redundant content while preserving references
+ */
+class DeduplicationEngine {
+  constructor(options = {}) {
+    this.harness = options.harness || new BrailleHarness();
+    this.similarityThreshold = options.similarityThreshold || 0.85;
+    this.fingerprints = new Map(); // fp -> { index, content, count }
+    this.stats = {
+      totalProcessed: 0,
+      duplicatesFound: 0,
+      bytesDeduped: 0,
+    };
+  }
+
+  /**
+   * Process a message and return deduplicated version
+   */
+  process(content, role = 'unknown') {
+    if (!content || typeof content !== 'string') {
+      return { content, isDuplicate: false };
+    }
+
+    this.stats.totalProcessed++;
+    const braille = this.harness.braid(content);
+    const fp = this.harness.fingerprint(braille);
+
+    // Exact match
+    if (this.fingerprints.has(fp)) {
+      const existing = this.fingerprints.get(fp);
+      existing.count++;
+      this.stats.duplicatesFound++;
+      this.stats.bytesDeduped += content.length;
+      
+      return {
+        content: `[REF:${existing.index}]`, // Reference to original
+        isDuplicate: true,
+        originalIndex: existing.index,
+      };
+    }
+
+    // Check for near-duplicates using similarity
+    for (const [existingFp, existing] of this.fingerprints) {
+      const similarity = brailleSimilarity(braille, existing.braille);
+      if (similarity >= this.similarityThreshold) {
+        existing.count++;
+        this.stats.duplicatesFound++;
+        this.stats.bytesDeduped += Math.floor(content.length * similarity);
+        
+        // Keep only the diff
+        const diff = this.extractDiff(content, existing.content);
+        return {
+          content: `[SIMILAR:${existing.index}] ${diff}`,
+          isDuplicate: true,
+          similarity,
+          originalIndex: existing.index,
+        };
+      }
+    }
+
+    // New unique content
+    const index = this.fingerprints.size;
+    this.fingerprints.set(fp, {
+      index,
+      content,
+      braille,
+      count: 1,
+      role,
+    });
+
+    return { content, isDuplicate: false, index };
+  }
+
+  /**
+   * Extract meaningful diff between two similar strings
+   */
+  extractDiff(newContent, originalContent) {
+    const newWords = newContent.split(/\s+/);
+    const origWords = new Set(originalContent.split(/\s+/));
+    
+    const diffWords = newWords.filter(w => !origWords.has(w));
+    if (diffWords.length === 0) return '(identical)';
+    if (diffWords.length > 20) return `(+${diffWords.length} words)`;
+    
+    return diffWords.slice(0, 10).join(' ') + (diffWords.length > 10 ? '...' : '');
+  }
+
+  /**
+   * Deduplicate an entire conversation history
+   */
+  deduplicateHistory(history) {
+    const result = [];
+    
+    for (const msg of history) {
+      if (msg.role === 'tool' && msg.content) {
+        const processed = this.process(msg.content, 'tool');
+        result.push({
+          ...msg,
+          content: processed.content,
+          _deduped: processed.isDuplicate,
+        });
+      } else {
+        result.push(msg);
+      }
+    }
+
+    return {
+      history: result,
+      stats: this.getStats(),
+    };
+  }
+
+  getStats() {
+    return { ...this.stats };
+  }
+
+  reset() {
+    this.fingerprints.clear();
+    this.stats = {
+      totalProcessed: 0,
+      duplicatesFound: 0,
+      bytesDeduped: 0,
+    };
+  }
+}
+
+// ============================================================================
+// LLM-Native Braille Summary Generation
+// ============================================================================
+
+/**
+ * Generate a braille-native summary prompt for LLMs
+ * LLMs can read and write braille, so we can ask them to summarize in braille
+ */
+function createBrailleSummaryPrompt(messages, harness = new BrailleHarness()) {
+  const formattedMessages = messages.map(m => {
+    if (m.role === 'user') return `U: ${m.content?.slice(0, 200) || ''}`;
+    if (m.role === 'assistant') {
+      let text = `A: ${m.content?.slice(0, 200) || ''}`;
+      if (m.tool_calls) {
+        const tools = m.tool_calls.map(tc => tc.function?.name || tc.name).join(',');
+        text += ` [${tools}]`;
+      }
+      return text;
+    }
+    if (m.role === 'tool') return `T:${m.name}:(result)`;
+    return '';
+  }).filter(Boolean).join('\n');
+
+  // Provide examples of braille contractions for the LLM
+  const contractionExamples = [
+    'the→⠮', 'and→⠯', 'for→⠿', 'with→⠾', 'that→⠞',
+    'function→⣋⣥', 'return→⣗⣞', 'file→⣋⣇', 'read→⣗⣙',
+    'success→⣎⣉', 'error→⣑⣗⣗', 'created→⣉⣗⣙', 'modified→⣍⣙⣋',
+  ].join(' ');
+
+  return `Summarize this conversation in compressed braille shorthand.
+Use these contractions: ${contractionExamples}
+Keep summary under 100 braille cells. Focus on: what user wanted, actions taken, outcome.
+
+Conversation:
+${formattedMessages}
+
+Braille summary:`;
+}
+
+/**
+ * Parse an LLM's braille summary back to text
+ */
+function parseBrailleSummary(brailleSummary, harness = new BrailleHarness()) {
+  if (!brailleSummary) return '';
+  
+  // Extract braille characters (U+2800-U+28FF)
+  const brailleOnly = brailleSummary.replace(/[^\u2800-\u28FF\s]/g, '');
+  
+  return harness.unbraid(brailleOnly);
+}
+
+/**
+ * Create a hybrid summary: braille-compressed with English fallback
+ */
+function createHybridSummary(messages, harness = new BrailleHarness()) {
+  const userRequests = messages
+    .filter(m => m.role === 'user')
+    .map(m => m.content?.slice(0, 50))
+    .filter(Boolean);
+
+  const toolCalls = messages
+    .filter(m => m.tool_calls)
+    .flatMap(m => m.tool_calls.map(tc => tc.function?.name || tc.name));
+
+  const uniqueTools = [...new Set(toolCalls)];
+
+  // Create compressed summary using contractions
+  const summary = `${userRequests.length} requests: ${userRequests.slice(-2).join('; ')}. Tools: ${uniqueTools.join(',')}`;
+  
+  // Braid it for maximum compression
+  const braided = harness.braid(summary);
+  
+  return {
+    braille: braided,
+    text: summary,
+    compressionRatio: braided.length / summary.length,
+  };
+}
+
+// ============================================================================
 // Exports
 // ============================================================================
 
@@ -363,4 +700,9 @@ module.exports = {
   brailleToByte,
   braidConversation,
   findDuplicates,
+  brailleSimilarity,
+  DeduplicationEngine,
+  createBrailleSummaryPrompt,
+  parseBrailleSummary,
+  createHybridSummary,
 };
