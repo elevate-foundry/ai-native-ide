@@ -230,3 +230,17 @@ The goal is to move from **text-first coding assistance** to **runtime-aware sys
 5. repair based on observed failures.
 
 This repo is intentionally minimal, but designed to be extended with a real Playwright adapter and real build/test/runtime process hooks.
+
+<!-- ELEVATE:BEGIN (auto-generated section; edits here are overwritten) -->
+## About
+
+| | |
+| --- | --- |
+| **Description** | Agent-first AI-native IDE runtime with tool execution, project memory, and autonomous coding loop |
+| **Language** | JavaScript |
+| **Commits** | 27 |
+| **Created** | 2026-03-10 |
+| **Last push** | 2026-03-19 |
+
+Part of [**elevate-foundry**](https://github.com/elevate-foundry) · [repository](https://github.com/elevate-foundry/ai-native-ide)
+<!-- ELEVATE:END -->
